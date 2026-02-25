@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+
+# Docker volumes
+memgraph-data/
+qdrant-data/
+n8n-data/
