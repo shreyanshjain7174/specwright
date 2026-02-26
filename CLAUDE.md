@@ -511,15 +511,110 @@ Once trust is established (through audit trails showing AI catching errors human
 
 ---
 
-## Current Status (Updated: 2026-02-09)
+## MCP Server Integration (Phase 3)
 
-- **Stage:** Conceptual design → Setting up project structure
-- **Team:** Shreyansh (founder) + AI agents (Goody the assistant)
-- **Next Steps:**
-  1. Set up multi-agent architecture in OpenClaw
-  2. Create comprehensive architecture docs
-  3. File feature request for agent-to-agent communication
-  4. Identify first concierge customer (YC founder)
+### For Claude Desktop
+
+Add this to `~/.claude/settings.json` (create if doesn't exist):
+
+```json
+{
+  "mcpServers": {
+    "specwright": {
+      "command": "npm",
+      "args": ["run", "mcp"],
+      "cwd": "/path/to/specwright",
+      "env": {
+        "MCP_SERVER_MODE": "stdio"
+      }
+    }
+  }
+}
+```
+
+Then restart Claude Desktop. You'll see "Specwright" in the Tool Use menu.
+
+### For Cursor Web Integration
+
+The Specwright HTTP server exposes two endpoints:
+
+**1. Get Server Manifest**
+```bash
+curl http://localhost:3001/mcp/manifest
+```
+
+**2. Call a Tool**
+```bash
+curl -X POST http://localhost:3001/mcp/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool_name": "fetch_spec",
+    "arguments": {
+      "feature_name": "user-authentication"
+    }
+  }'
+```
+
+**To run HTTP mode:**
+```bash
+MCP_SERVER_MODE=http MCP_HTTP_PORT=3001 npm run mcp
+```
+
+### Available Tools (All 6)
+
+1. **fetch_spec** — Get complete 4-layer Executable Spec
+   - Input: `{ feature_name: string }`
+   - Output: Narrative + Context Pointers + Constraints + Gherkin Tests
+
+2. **ingest_context** — Add raw input (Slack, Jira, transcript, etc.)
+   - Input: `{ source_type: string, content: string, feature_name: string, source_url?: string }`
+   - Output: Context ID + confirmation
+
+3. **generate_spec** — Trigger spec generation pipeline
+   - Input: `{ feature_name: string, description?: string }`
+   - Output: Job ID for polling
+
+4. **list_features** — Browse all features
+   - Input: `{ search?: string, status?: 'draft' | 'simulated' | 'approved' }`
+   - Output: Feature list with spec status
+
+5. **get_constraints** — Quick reference (just the DO NOTs)
+   - Input: `{ feature_name: string }`
+   - Output: Constraint layer only
+
+6. **run_simulation** — Pre-code validation
+   - Input: `{ spec_id: string }`
+   - Output: Simulation results (pass/fail, coverage %, issues)
+
+### Example Workflows
+
+#### In Claude Desktop:
+```
+User: "What are the authentication constraints?"
+Claude: @specwright get_constraints user-authentication
+→ Returns list of DO NOTs for auth feature
+```
+
+#### In Cursor (future integration):
+```
+Cursor: "I need to implement password reset. Get the spec."
+→ Calls /mcp/call with fetch_spec
+→ Displays Gherkin tests + constraints in sidebar
+```
+
+---
+
+## Current Status (Updated: 2026-02-27)
+
+- **Stage:** Production build in progress (Phases 1-5)
+- **Team:** Shreyansh (founder) + Multi-agent team (Architect, Engineer, QA, PM)
+- **Current Work:**
+  - Phase 1: ✅ Audit complete (build clean, all scaffolds present)
+  - Phase 2: 🔄 Core engine (ingestion, orchestrator, simulator, APIs) — Engineer Agent
+  - Phase 3: ✅ MCP server with dual transport (STDIO + HTTP, all 6 tools)
+  - Phase 4: 🔄 Frontend (landing, demo, dashboard) — PM Agent
+  - Phase 5: 🔄 Tests (150+ unit + integration tests) — QA Agent
+- **ETA:** 2026-02-27 05:00-06:00 IST (~7-8 hour session)
 
 ---
 
