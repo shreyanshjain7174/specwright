@@ -2,6 +2,8 @@
 
 > **"Cursor for Product Management"** — A context intelligence platform that transforms chaotic, unstructured product inputs into deterministic, traceable specifications for AI coding tools.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/shreyanshjain7174/specwright)
+
 ## Architecture
 
 ```
@@ -26,10 +28,10 @@
 ### Stack
 - **Frontend**: Next.js 15, React 19, TailwindCSS, Lucide icons
 - **Database**: Neon PostgreSQL with pgvector (managed, serverless)
-- **Local Dev**: Docker Compose (Memgraph, Qdrant, n8n)
 - **MCP Server**: `@modelcontextprotocol/sdk` via StdioServerTransport
+- **Deployment**: Vercel + GitHub Actions CI/CD
 
-## Knowledge Graph Schema
+## Database Schema
 
 | Table | Columns |
 |-------|---------|
@@ -40,12 +42,12 @@
 ### Traceability
 `Feature → Spec → RawInput` — every specification traces back to actual user quotes.
 
-## Setup
+## Quick Start
 
 ```bash
 # 1. Clone
-git clone <repo-url>
-cd reasoning-engine
+git clone https://github.com/shreyanshjain7174/specwright.git
+cd specwright
 
 # 2. Install dependencies
 npm install
@@ -56,12 +58,6 @@ cp .env.example .env
 
 # 4. Start dev server
 npm run dev
-```
-
-### Local Infrastructure (Optional)
-```bash
-docker-compose up -d
-# Starts: Memgraph (7687/3000), Qdrant (6333/6334), n8n (5678)
 ```
 
 ### MCP Server
@@ -82,11 +78,36 @@ npm run mcp
 
 ## Pages
 
-- `/` — Landing page
-- `/demo` — Interactive spec generation demo
-- `/dashboard` — Feature management dashboard
-- `/dashboard/ingest` — Context ingestion form
-- `/dashboard/features/[id]` — Feature detail with traceability
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/demo` | Interactive spec generation demo |
+| `/dashboard` | Feature management dashboard |
+| `/dashboard/ingest` | Context ingestion form |
+| `/dashboard/features/[id]` | Feature detail with traceability |
+
+## Deployment
+
+### Vercel (Production)
+
+The app is deployed on Vercel with automatic deployments via GitHub Actions.
+
+```bash
+# Deploy manually via Vercel CLI
+npx vercel --prod
+```
+
+### Environment Variables (Vercel)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | Neon PostgreSQL connection string |
+| `CLOUDFLARE_ACCOUNT_ID` | ❌ | Optional: Cloudflare Workers AI |
+| `CLOUDFLARE_API_TOKEN` | ❌ | Optional: Cloudflare Workers AI |
+
+### Neon Integration
+
+The database is hosted on [Neon](https://neon.tech) — a serverless PostgreSQL platform with pgvector support. Vercel's Neon integration auto-provisions the `DATABASE_URL` environment variable.
 
 ## License
 MIT

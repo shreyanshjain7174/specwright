@@ -1,8 +1,11 @@
 node_modules/
 dist/
 .env
+.env.local
+.env.*.local
 .next/
 .vercel/
+*.tsbuildinfo
 
 # Docker volumes
 memgraph-data/
@@ -11,3 +14,4 @@ n8n-data/
 
 # OS
 .DS_Store
+.vercel
