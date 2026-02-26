@@ -15,7 +15,8 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:ui": "vitest --ui",
-    "lint:ci": "eslint . --ext .ts,.tsx --max-warnings 0"
+    "lint:ci": "eslint . --ext .ts,.tsx --max-warnings 0",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
