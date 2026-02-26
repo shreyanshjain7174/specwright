@@ -207,6 +207,12 @@ describe('MCP Tool: ingest_context', () => {
 });
 
 describe('MCP Tool: fetch_spec', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSessionRun.mockReset();
+    mockSessionClose.mockReset().mockResolvedValue(undefined);
+  });
+
   it('returns correct structure with feature and specifications', async () => {
     const result = await mcpFetchSpec({ featureName: 'dark-mode' });
     expect(result).toHaveProperty('feature');

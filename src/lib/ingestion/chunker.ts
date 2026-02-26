@@ -36,25 +36,24 @@ export function semanticChunk(
 
   let rawChunks: string[];
   if (isConversation) {
-    // Preserve conversation turns as atomic units
+    // Preserve conversation turns as atomic units — do NOT merge them
     rawChunks = text
       .split(CONVERSATION_SEPARATORS)
       .map((s) => s.trim())
       .filter(Boolean);
   } else {
-    // Split by paragraph/sentence boundaries
-    rawChunks = text
+    // Split by paragraph/sentence boundaries, then normalize
+    const paragraphs = text
       .split(/\n\n+/)
       .flatMap((para) => splitBySentence(para))
       .map((s) => s.trim())
       .filter(Boolean);
+    rawChunks = normalizeSizes(paragraphs);
   }
 
-  // Merge small chunks, split oversized chunks
-  const normalized = normalizeSizes(rawChunks);
-  const total_chunks = normalized.length;
+  const total_chunks = rawChunks.length;
 
-  return normalized.map((text, chunk_index) => ({
+  return rawChunks.map((text, chunk_index) => ({
     id: `${metadata.source_id}-chunk-${chunk_index}`,
     text,
     metadata: {

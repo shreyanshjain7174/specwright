@@ -7,14 +7,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .ts,.tsx",
     "mcp": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "lint:ci": "eslint . --ext .ts,.tsx --max-warnings 0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

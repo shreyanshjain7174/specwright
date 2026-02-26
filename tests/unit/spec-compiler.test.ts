@@ -218,7 +218,7 @@ describe('compileSpec - versioning', () => {
 
   it('includes the version in the spec ID', () => {
     const spec = makeMinimalSpec();
-    expect(spec.id).toContain(spec.version.replace('.', ''));
+    expect(spec.id).toContain(spec.version);
   });
 });
 

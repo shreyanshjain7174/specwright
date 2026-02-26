@@ -16,7 +16,6 @@ export interface Contradiction {
 
 /**
  * Detect contradictions between requirements and constraints
- * (e.g., a MUST requirement that conflicts with a performance constraint)
  */
 export function detectContradictions(spec: SpecLayer): Contradiction[] {
   const contradictions: Contradiction[] = [];
@@ -26,11 +25,11 @@ export function detectContradictions(spec: SpecLayer): Contradiction[] {
       const reqText = req.text.toLowerCase();
       const conText = con.text.toLowerCase();
 
-      // Performance contradiction: req says "realtime" but constraint limits bandwidth/speed
-      if (
-        (reqText.includes('real-time') || reqText.includes('realtime') || reqText.includes('instant')) &&
-        (conText.includes('bandwidth') || conText.includes('throttl') || conText.includes('rate limit'))
-      ) {
+      // Performance contradiction: req says "realtime/instant" but constraint limits bandwidth/speed
+      const reqIsRealTime = reqText.includes('real-time') || reqText.includes('realtime') || reqText.includes('instant');
+      const conIsThrottled = conText.includes('bandwidth') || conText.includes('throttl') ||
+        conText.includes('rate limit') || conText.includes('rate-limit') || conText.includes('rate limit');
+      if (reqIsRealTime && conIsThrottled) {
         contradictions.push({
           requirement_id: req.id,
           constraint_id: con.id,
@@ -39,7 +38,7 @@ export function detectContradictions(spec: SpecLayer): Contradiction[] {
         });
       }
 
-      // Offline contradiction: req requires connectivity, constraint says offline
+      // Offline contradiction: req requires offline, constraint says network
       if (
         reqText.includes('offline') &&
         (conText.includes('api') || conText.includes('network') || conText.includes('internet'))
@@ -52,13 +51,9 @@ export function detectContradictions(spec: SpecLayer): Contradiction[] {
         });
       }
 
-      // Encryption vs performance
-      if (
-        reqText.includes('encrypt') &&
-        conText.includes('millisecond') &&
-        /\b([0-9]+)ms\b/.test(conText)
-      ) {
-        const ms = parseInt(conText.match(/\b([0-9]+)ms\b/)![1]);
+      // Encryption vs very tight latency constraint
+      if (reqText.includes('encrypt') && conText.includes('millisecond')) {
+        const ms = parseInt((conText.match(/\b([0-9]+)ms\b/) || [])[1] ?? '999');
         if (ms < 50) {
           contradictions.push({
             requirement_id: req.id,
@@ -88,7 +83,6 @@ export function validateTestability(
     const reqWords = req.text.toLowerCase().split(/\W+/).filter((w) => w.length > 4);
     const hasTest = gherkinScenarios.some((scenario) => {
       const scenarioLower = scenario.toLowerCase();
-      // Check if at least 2 key words from the requirement appear in the scenario
       const matches = reqWords.filter((w) => scenarioLower.includes(w));
       return matches.length >= 2;
     });

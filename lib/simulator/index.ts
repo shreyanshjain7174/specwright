@@ -158,7 +158,7 @@ Respond with valid JSON only (no markdown fences):
     });
 
     const raw = response.choices[0]?.message?.content?.trim() ?? '';
-    let text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
     const parsed = JSON.parse(text) as {
       ambiguities: Array<{ location: string; text: string; reason: string; suggestion: string }>;
       overallAmbiguityLevel: 'low' | 'medium' | 'high';
@@ -230,7 +230,7 @@ Respond with valid JSON only:
     });
 
     const raw = response.choices[0]?.message?.content?.trim() ?? '';
-    let text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
     const parsed = JSON.parse(text) as {
       contradictions: Array<{ itemA: string; itemB: string; description: string; resolution: string }>;
       hasContradictions: boolean;
