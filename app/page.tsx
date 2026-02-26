@@ -32,7 +32,7 @@ export default function Home() {
               className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-500 
                          text-white font-semibold rounded-xl transition-all hover:scale-105 shadow-lg shadow-blue-500/25"
             >
-              Try the Demo
+              Generate a Spec
               <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
@@ -170,14 +170,14 @@ export default function Home() {
             Stop Shipping Hallucinated Features
           </h2>
           <p className="text-gray-400 mb-8">
-            See how we caught a $220K bug in 3 seconds with pre-code simulation
+            See how Specwright caught a $220K bug in 3 seconds with pre-code simulation
           </p>
           <Link
             href="/demo"
             className="inline-flex items-center gap-2 px-8 py-4 bg-white hover:bg-gray-100 
                        text-gray-900 font-semibold rounded-xl transition-colors"
           >
-            Try the Live Demo
+            Try It Now
             <ArrowRight className="h-5 w-5" />
           </Link>
         </div>
@@ -186,7 +186,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-8 border-t border-gray-800">
         <div className="max-w-6xl mx-auto px-4 text-center text-gray-500 text-sm">
-          <p>Built by Shreyansh • The Reasoning Engine © 2026</p>
+          <p>Built by Shreyansh • Specwright © 2026</p>
         </div>
       </footer>
     </div>

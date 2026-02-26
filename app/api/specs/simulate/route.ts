@@ -1,86 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const SYSTEM_PROMPT = `You are a Virtual User Simulator. Test an Executable Specification mentally. Output valid JSON only.`;
-
-// Mock simulation for demo
-function generateMockSimulation(spec: any) {
-  const hasSecurityConstraint = spec.constraints?.some((c: any) => 
-    c.rule?.toLowerCase().includes('permission') || c.severity === 'critical'
-  );
-  
-  return {
-    passed: false,
-    totalScenarios: spec.verification?.length || 2,
-    passedScenarios: (spec.verification?.length || 2) - 1,
-    failedScenarios: 1,
-    failures: [
-      {
-        scenario: "Edge case: concurrent operations",
-        reason: hasSecurityConstraint 
-          ? "CRITICAL: Spec mentions permission checks but does not specify handling for concurrent bulk operations. Race condition could bypass permission validation."
-          : "Spec does not define behavior when multiple users perform the action simultaneously."
-      }
-    ],
-    suggestions: [
-      "Add constraint: Implement distributed locking for bulk operations",
-      "Add verification scenario for concurrent access patterns",
-      "Consider adding audit logging for compliance requirements"
-    ]
-  };
-}
+import { getAIClient, AI_MODEL } from '@/lib/ai';
+import { SIMULATION_PROMPT, AGENT_IDENTITY } from '@/lib/agent';
 
 export async function POST(request: NextRequest) {
   try {
     const { spec } = await request.json();
+
     if (!spec) {
       return NextResponse.json({ error: 'Spec is required' }, { status: 400 });
     }
 
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-    const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+    const client = getAIClient();
 
-    // Try Cloudflare first
-    if (accountId && apiToken) {
-      try {
-        const response = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user', content: `Simulate:\n\n${JSON.stringify(spec, null, 2)}` }
-              ],
-              max_tokens: 1024,
-            }),
-          }
-        );
+    const response = await client.chat.completions.create({
+      model: AI_MODEL,
+      messages: [
+        { role: 'system', content: SIMULATION_PROMPT },
+        {
+          role: 'user',
+          content: `Run a pre-code simulation on this Executable Specification and find issues:\n\n${JSON.stringify(spec, null, 2)}`,
+        },
+      ],
+      max_tokens: 4096,
+      temperature: 0.4,
+    });
 
-        const data = await response.json();
-        
-        if (data.success && data.result?.response) {
-          let jsonText = data.result.response.trim();
-          if (jsonText.startsWith('```')) jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```$/g, '');
-          const result = JSON.parse(jsonText);
-          return NextResponse.json({ result, source: 'cloudflare' });
-        }
-      } catch (cfError) {
-        console.log('Cloudflare failed, using mock:', cfError);
-      }
+    const raw = response.choices[0]?.message?.content?.trim();
+
+    if (!raw) {
+      return NextResponse.json(
+        { error: 'Simulation returned empty response. Please try again.' },
+        { status: 502 }
+      );
     }
 
-    // Fallback to mock for demo
-    const result = generateMockSimulation(spec);
-    return NextResponse.json({ result, source: 'mock' });
+    // Parse JSON — strip markdown fences if present
+    let jsonText = raw;
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
+    }
 
-  } catch (error) {
-    console.error('Error:', error);
+    let result;
+    try {
+      result = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error('Failed to parse simulation response:', raw);
+      return NextResponse.json(
+        { error: 'Simulation returned invalid response. Please try again.' },
+        { status: 502 }
+      );
+    }
+
+    // Validate and normalize
+    result.passed = result.passed ?? false;
+    result.totalScenarios = result.totalScenarios ?? 0;
+    result.passedScenarios = result.passedScenarios ?? 0;
+    result.failedScenarios = result.failedScenarios ?? 0;
+    result.failures = result.failures ?? [];
+    result.suggestions = result.suggestions ?? [];
+
+    return NextResponse.json({
+      result,
+      agent: AGENT_IDENTITY.name,
+      model: AI_MODEL,
+    });
+  } catch (error: any) {
+    console.error('Simulation error:', error);
+
+    if (error?.message?.includes('CLOUDFLARE_API_KEY')) {
+      return NextResponse.json(
+        { error: 'AI service not configured. Set CLOUDFLARE_API_KEY environment variable.' },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed' },
+      { error: error instanceof Error ? error.message : 'Failed to run simulation' },
       { status: 500 }
     );
   }

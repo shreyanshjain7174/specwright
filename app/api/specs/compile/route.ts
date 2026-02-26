@@ -1,60 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const SYSTEM_PROMPT = `You are a Product Requirements Analyst. Transform raw context into structured Executable Specifications. Output valid JSON only.`;
-
-// Mock response for demo when Cloudflare auth fails
-function generateMockSpec(context: string) {
-  const hasBulkDelete = context.toLowerCase().includes('bulk') || context.toLowerCase().includes('delete');
-  const hasExport = context.toLowerCase().includes('export') || context.toLowerCase().includes('json');
-  
-  return {
-    narrative: {
-      title: hasBulkDelete ? "Bulk Document Deletion" : hasExport ? "Multi-Format Export" : "Feature Implementation",
-      objective: hasBulkDelete 
-        ? "Enable users to delete multiple documents at once for workflow efficiency"
-        : "Implement the requested feature based on customer feedback",
-      rationale: "Multiple customer requests and enterprise demand justify this feature"
-    },
-    contextPointers: [
-      { source: "Slack #product-feedback", snippet: "Customers have been asking for this feature", link: null },
-      { source: "GitHub Issue", snippet: "Feature request with high priority label", link: null },
-      { source: "Customer Interview", snippet: "This is blocking our workflow", link: null }
-    ],
-    constraints: [
-      { 
-        rule: hasBulkDelete 
-          ? "DO NOT bypass permission checks - validate user permissions for EACH item"
-          : "DO NOT break backward compatibility with existing functionality",
-        severity: "critical", 
-        rationale: "Security and data integrity must be maintained" 
-      },
-      { 
-        rule: "Implement soft-delete with recovery window before permanent deletion", 
-        severity: "warning", 
-        rationale: "Enterprise customers need audit trails" 
-      },
-      { 
-        rule: "Add rate limiting to prevent abuse", 
-        severity: "info", 
-        rationale: "Performance protection" 
-      }
-    ],
-    verification: [
-      {
-        scenario: "User performs action with valid permissions",
-        given: ["User has required permissions", "User is authenticated"],
-        when: ["User initiates the action", "System processes request"],
-        then: ["Action completes successfully", "User sees confirmation"]
-      },
-      {
-        scenario: "User attempts action without permission",
-        given: ["User lacks required permissions"],
-        when: ["User attempts the action"],
-        then: ["Action is blocked", "User sees permission denied error"]
-      }
-    ]
-  };
-}
+import { getAIClient, AI_MODEL } from '@/lib/ai';
+import { SPEC_COMPILATION_PROMPT, AGENT_IDENTITY } from '@/lib/agent';
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,51 +10,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Context is required' }, { status: 400 });
     }
 
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-    const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-
-    // Try Cloudflare first
-    if (accountId && apiToken) {
-      try {
-        const response = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user', content: `Generate JSON spec for:\n\n${context}` }
-              ],
-              max_tokens: 2048,
-            }),
-          }
-        );
-
-        const data = await response.json();
-        
-        if (data.success && data.result?.response) {
-          let jsonText = data.result.response.trim();
-          if (jsonText.startsWith('```')) jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```$/g, '');
-          const spec = JSON.parse(jsonText);
-          return NextResponse.json({ spec, source: 'cloudflare' });
-        }
-      } catch (cfError) {
-        console.log('Cloudflare failed, using mock:', cfError);
-      }
+    if (context.trim().length < 20) {
+      return NextResponse.json(
+        { error: 'Please provide more context (at least a few sentences)' },
+        { status: 400 }
+      );
     }
 
-    // Fallback to mock for demo
-    const spec = generateMockSpec(context);
-    return NextResponse.json({ spec, source: 'mock' });
+    const client = getAIClient();
 
-  } catch (error) {
-    console.error('Error:', error);
+    const response = await client.chat.completions.create({
+      model: AI_MODEL,
+      messages: [
+        { role: 'system', content: SPEC_COMPILATION_PROMPT },
+        {
+          role: 'user',
+          content: `Analyze the following raw product context and generate an Executable Specification:\n\n${context}`,
+        },
+      ],
+      max_tokens: 4096,
+      temperature: 0.3,
+    });
+
+    const raw = response.choices[0]?.message?.content?.trim();
+
+    if (!raw) {
+      return NextResponse.json(
+        { error: 'AI returned empty response. Please try again.' },
+        { status: 502 }
+      );
+    }
+
+    // Parse JSON — strip markdown fences if present
+    let jsonText = raw;
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
+    }
+
+    let spec;
+    try {
+      spec = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', raw);
+      return NextResponse.json(
+        { error: 'AI returned invalid JSON. Please try again with clearer context.' },
+        { status: 502 }
+      );
+    }
+
+    // Validate required fields
+    if (!spec.narrative || !spec.constraints || !spec.verification) {
+      return NextResponse.json(
+        { error: 'AI response missing required fields. Please try again.' },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      spec,
+      agent: AGENT_IDENTITY.name,
+      model: AI_MODEL,
+    });
+  } catch (error: any) {
+    console.error('Spec compilation error:', error);
+
+    if (error?.message?.includes('CLOUDFLARE_API_KEY')) {
+      return NextResponse.json(
+        { error: 'AI service not configured. Set CLOUDFLARE_API_KEY environment variable.' },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed' },
+      { error: error instanceof Error ? error.message : 'Failed to compile spec' },
       { status: 500 }
     );
   }

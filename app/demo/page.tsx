@@ -6,7 +6,7 @@ import { SpecViewer } from '@/components/SpecViewer';
 import { SimulationResults } from '@/components/SimulationResults';
 import { LoadingState } from '@/components/LoadingState';
 import { ExecutableSpec, SimulationResult } from '@/lib/types';
-import { Sparkles, Download, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Sparkles, Download, ArrowLeft, AlertCircle, Cpu, Shield } from 'lucide-react';
 import Link from 'next/link';
 
 const EXAMPLE_CONTEXT = `[Slack #product-feedback]
@@ -25,18 +25,19 @@ Note: Enterprise customer, $50k ARR
 [Engineering Slack - buried in thread from 3 months ago]
 @dave: Remember guys, our permission system checks are only on single-doc endpoints. Bulk operations bypass them currently. TODO: fix before we add any bulk features.`;
 
-export default function DemoPage() {
+type Step = 'idle' | 'compiling' | 'compiled' | 'simulating' | 'done';
+
+export default function SpecGeneratorPage() {
   const [context, setContext] = useState(EXAMPLE_CONTEXT);
   const [spec, setSpec] = useState<ExecutableSpec | null>(null);
   const [simulation, setSimulation] = useState<SimulationResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSimulating, setIsSimulating] = useState(false);
+  const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!context.trim()) return;
-    
-    setIsLoading(true);
+
+    setStep('compiling');
     setSpec(null);
     setSimulation(null);
     setError(null);
@@ -56,8 +57,7 @@ export default function DemoPage() {
 
       const { spec: generatedSpec } = await compileResponse.json();
       setSpec(generatedSpec);
-      setIsLoading(false);
-      setIsSimulating(true);
+      setStep('simulating');
 
       // Step 2: Run simulation
       const simulateResponse = await fetch('/api/specs/simulate', {
@@ -73,27 +73,25 @@ export default function DemoPage() {
 
       const { result } = await simulateResponse.json();
       setSimulation(result);
-
+      setStep('done');
     } catch (err) {
       console.error('Generation error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setIsLoading(false);
-      setIsSimulating(false);
+      setStep(spec ? 'compiled' : 'idle');
     }
   };
 
   const handleExport = () => {
     if (!spec) return;
-    
+
     const exportData = {
       spec,
       simulation,
       exportedAt: new Date().toISOString(),
       version: '1.0',
-      exportedFrom: 'The Reasoning Engine'
+      exportedFrom: 'Specwright',
     };
-    
+
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -101,6 +99,32 @@ export default function DemoPage() {
     a.download = `spec-${spec.narrative.title.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const stepLabel = () => {
+    switch (step) {
+      case 'compiling':
+        return (
+          <span className="flex items-center gap-2">
+            <Cpu className="h-4 w-4 animate-pulse" />
+            Analyzing context...
+          </span>
+        );
+      case 'simulating':
+        return (
+          <span className="flex items-center gap-2">
+            <Shield className="h-4 w-4 animate-pulse" />
+            Running simulation...
+          </span>
+        );
+      default:
+        return (
+          <span className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Generate Spec
+          </span>
+        );
+    }
   };
 
   return (
@@ -114,25 +138,24 @@ export default function DemoPage() {
               Back
             </Link>
             <div>
-              <h1 className="text-xl font-bold text-gray-100">The Reasoning Engine</h1>
-              <p className="text-sm text-gray-500">Transform chaos into executable specifications</p>
+              <h1 className="text-xl font-bold text-gray-100">Spec Generator</h1>
+              <p className="text-sm text-gray-500">Paste raw context → get executable specifications</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerate}
-              disabled={!context.trim() || isLoading || isSimulating}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 
+              disabled={!context.trim() || step === 'compiling' || step === 'simulating'}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500
                          disabled:bg-gray-700 disabled:cursor-not-allowed
-                         text-white font-medium rounded-lg transition-colors"
+                         text-white font-medium rounded-lg transition-all hover:shadow-lg hover:shadow-blue-500/25"
             >
-              <Sparkles className="h-4 w-4" />
-              {isLoading ? 'Generating...' : isSimulating ? 'Simulating...' : 'Generate Spec'}
+              {stepLabel()}
             </button>
             {spec && (
               <button
                 onClick={handleExport}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-600 
+                className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-600
                            hover:border-gray-500 hover:bg-gray-800
                            text-gray-300 font-medium rounded-lg transition-colors"
               >
@@ -150,7 +173,7 @@ export default function DemoPage() {
           <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
             <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
             <p className="text-red-400">{error}</p>
-            <button 
+            <button
               onClick={() => setError(null)}
               className="ml-auto text-red-400 hover:text-red-300"
             >
@@ -165,16 +188,16 @@ export default function DemoPage() {
         <div className="grid lg:grid-cols-2 gap-6 mb-6" style={{ minHeight: '500px' }}>
           {/* Left: Context Input */}
           <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
-            <ContextInput 
-              value={context} 
-              onChange={setContext} 
-              disabled={isLoading || isSimulating}
+            <ContextInput
+              value={context}
+              onChange={setContext}
+              disabled={step === 'compiling' || step === 'simulating'}
             />
           </div>
 
           {/* Right: Spec Viewer or Loading */}
           <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 overflow-hidden">
-            {isLoading ? (
+            {step === 'compiling' ? (
               <LoadingState />
             ) : (
               <SpecViewer spec={spec} />
@@ -183,13 +206,13 @@ export default function DemoPage() {
         </div>
 
         {/* Bottom: Simulation Results */}
-        {(simulation || isSimulating) && (
+        {(simulation || step === 'simulating') && (
           <div className="mb-6">
-            {isSimulating ? (
+            {step === 'simulating' ? (
               <div className="border border-gray-700 rounded-lg p-8 bg-gray-900/50">
                 <div className="flex items-center justify-center gap-3 text-gray-400">
                   <div className="animate-spin h-5 w-5 border-2 border-gray-500 border-t-blue-500 rounded-full" />
-                  Running pre-code simulation...
+                  Running pre-code simulation — stress-testing your spec for edge cases...
                 </div>
               </div>
             ) : (
@@ -198,11 +221,16 @@ export default function DemoPage() {
           </div>
         )}
 
-        {/* Demo Instructions */}
-        {!spec && !isLoading && !error && (
+        {/* Instructions */}
+        {!spec && step === 'idle' && !error && (
           <div className="text-center py-8 text-gray-500">
-            <p className="mb-2">👆 Paste some context in the left panel, then click <strong className="text-gray-300">"Generate Spec"</strong></p>
-            <p className="text-sm">Try the placeholder example — it's the "Bulk Delete Disaster" case study</p>
+            <p className="mb-2">
+              👆 Paste raw context from Slack, Jira, user calls, then click{' '}
+              <strong className="text-gray-300">"Generate Spec"</strong>
+            </p>
+            <p className="text-sm">
+              Try the placeholder example — it's based on a real $220K bug caught by pre-code simulation
+            </p>
           </div>
         )}
       </main>
