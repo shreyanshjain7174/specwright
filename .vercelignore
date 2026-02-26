@@ -1,0 +1,31 @@
+# Development & Testing
+tests/
+coverage/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+vitest.config.ts
+
+# Documentation (not needed at runtime)
+docs/
+memory/
+AGENTS.md
+INTEGRATION_TEST_PLAN.md
+DEPLOYMENT_CHECKLIST.md
+QUICKSTART.md
+SETUP.md
+UI-README.md
+CHANGELOG.md
+
+# Local config
+.env
+.env.local
+docker-compose.yml
+
+# Source (MCP server — runs separately, not via Vercel)
+src/
+
+# Misc
+*.log
+.DS_Store

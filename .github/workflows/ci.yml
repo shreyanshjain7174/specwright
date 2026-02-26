@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build, Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        node-version: ['20']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── TypeScript ──────────────────────────────────────────────────────
+      - name: TypeScript check (zero errors)
+        run: npx tsc --noEmit
+
+      # ── Lint ─────────────────────────────────────────────────────────────
+      - name: ESLint (zero errors)
+        run: npm run lint
+
+      # ── Build ─────────────────────────────────────────────────────────────
+      - name: Build (zero errors)
+        run: npm run build
+        env:
+          # Stub env vars for build-time validation
+          DATABASE_URL: postgresql://user:pass@localhost/specwright?sslmode=require
+          QDRANT_URI: http://localhost:6333
+          MEMGRAPH_URI: bolt://localhost:7687
+
+      # ── Tests ─────────────────────────────────────────────────────────────
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+
+      - name: Check coverage threshold (>70%)
+        run: |
+          # Extract coverage percentage from vitest output
+          COVERAGE=$(npx vitest run --coverage --reporter=json 2>/dev/null | \
+            node -e "
+              const chunks = [];
+              process.stdin.on('data', d => chunks.push(d));
+              process.stdin.on('end', () => {
+                try {
+                  const lines = Buffer.concat(chunks).toString().split('\n');
+                  const jsonLine = lines.find(l => l.startsWith('{'));
+                  if (!jsonLine) { console.log('0'); return; }
+                  const data = JSON.parse(jsonLine);
+                  const total = data.total?.lines?.pct ?? 0;
+                  console.log(total);
+                } catch { console.log('0'); }
+              });
+            " 2>/dev/null) || true
+          echo "Line coverage: ${COVERAGE}%"
+          # Vitest coverage thresholds are configured in vitest.config.ts
+          # This step is informational — threshold enforcement is in vitest config
+        continue-on-error: true
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
