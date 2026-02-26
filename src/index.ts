@@ -205,24 +205,24 @@ class SpecwrightServer {
                 content: [
                     {
                         type: 'text',
-                        text: \`Successfully ingested context. RawInput ID: \${rawInputId}\`,
-          },
-        ],
-      };
-    } catch (error) {
-      console.error('Error in ingest_context:', error);
-      throw new McpError(ErrorCode.InternalError, String(error));
+                        text: `Successfully ingested context. RawInput ID: ${rawInputId}`,
+                    },
+                ],
+            };
+        } catch (error) {
+            console.error('Error in ingest_context:', error);
+            throw new McpError(ErrorCode.InternalError, String(error));
+        }
     }
-  }
 
-  async run() {
-    await setupMemgraph();
-    await setupQdrant();
-    
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error('Specwright MCP server running on stdio');
-  }
+    async run() {
+        await setupMemgraph();
+        await setupQdrant();
+
+        const transport = new StdioServerTransport();
+        await this.server.connect(transport);
+        console.error('Specwright MCP server running on stdio');
+    }
 }
 
 const server = new SpecwrightServer();

@@ -1,23 +1,40 @@
 {
-  "name": "vacant-station",
+  "name": "specwright",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "mcp": "tsx src/index.ts"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@neondatabase/serverless": "^1.0.0",
     "@qdrant/js-client-rest": "^1.17.0",
+    "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "dotenv": "^17.3.1",
-    "neo4j-driver": "^6.0.1"
+    "eslint": "^10.0.2",
+    "lucide-react": "^0.460.0",
+    "neo4j-driver": "^6.0.1",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "eslint-config-next": "^16.1.6",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
