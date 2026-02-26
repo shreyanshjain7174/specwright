@@ -1,0 +1,59 @@
+{
+  "id": "spec-dark-mode-v1",
+  "feature": "dark-mode",
+  "version": "1.0.0",
+  "hash": "",
+  "layers": {
+    "context": {
+      "problem": "Users cannot use the app comfortably in low-light environments",
+      "sources": [
+        { "id": "raw-1", "type": "slack", "excerpt": "Users keep asking for dark mode" },
+        { "id": "raw-2", "type": "jira", "excerpt": "As a user I want dark mode" }
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-001",
+        "text": "The system SHALL provide a dark/light/system theme toggle",
+        "source_citation": "raw-1",
+        "priority": "MUST",
+        "acceptance_criteria": [
+          {
+            "scenario": "User enables dark mode",
+            "given": "the user is on the Settings page",
+            "when": "they toggle the Dark Mode switch",
+            "then": "the UI theme changes to dark and preference is saved"
+          }
+        ]
+      },
+      {
+        "id": "REQ-002",
+        "text": "Theme preference SHALL persist across sessions",
+        "source_citation": "raw-2",
+        "priority": "MUST",
+        "acceptance_criteria": [
+          {
+            "scenario": "Preference persists after logout",
+            "given": "the user has dark mode enabled",
+            "when": "they log out and log back in",
+            "then": "dark mode is still active"
+          }
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "id": "CON-001",
+        "text": "Theme transition MUST complete within 200ms",
+        "type": "performance"
+      }
+    ],
+    "risks": [
+      {
+        "id": "RISK-001",
+        "description": "Third-party components may not support dark mode",
+        "mitigation": "Audit all UI components before sprint 1"
+      }
+    ]
+  }
+}
