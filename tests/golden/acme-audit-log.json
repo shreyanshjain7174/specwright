@@ -1,0 +1,21 @@
+{
+  "input": "Enterprise client Acme Corp is threatening to churn. Security team flagged we don't have audit logs. They need every user action with timestamps, user IDs, and IP addresses. Must be exportable to CSV for SOC 2 compliance audit in 6 weeks.\n\nConstraints from customer call:\n- DO NOT store logs in the same DB as user data (compliance isolation)\n- DO NOT allow audit log deletion by any user including admins\n- DO NOT expose raw SQL or internal system events\n- Must retain logs for minimum 7 years\n- IP addresses must be masked for GDPR in EU regions\n\nSuccess criteria:\n- Admin can export last 90 days of audit logs to CSV\n- Each row includes: timestamp, user_id, email, action, resource_id, ip_address\n- Export completes in under 30 seconds for 100k rows\n- SOC 2 auditor can verify log integrity via SHA-256 hash",
+  "sourceType": "manual",
+  "featureName": "Audit Log Export for SOC 2 Compliance",
+  "expectedSpec": {
+    "narrative": {
+      "title": "Audit Log Export for SOC 2 Compliance",
+      "objective": "Implement tamper-proof audit logging with CSV export capability to satisfy Acme Corp's SOC 2 Type II compliance requirements and prevent $XXk ARR churn.",
+      "rationale": "Enterprise client at churn risk due to missing audit trail. SOC 2 audit in 6 weeks creates hard deadline.",
+      "userStory": "As a security auditor at Acme Corp, I want to export all user actions from the last 90 days as a CSV file so that I can complete our SOC 2 Type II audit with verifiable, tamper-proof evidence."
+    },
+    "constraints": [
+      "DO NOT store audit logs in the same database as user data — compliance isolation required",
+      "DO NOT allow deletion of audit logs by any user, including admins",
+      "DO NOT expose raw SQL queries or internal system events in the audit trail",
+      "DO NOT retain EU user IP addresses in plaintext — must be masked per GDPR",
+      "DO NOT break audit trail integrity — every log must have a SHA-256 hash"
+    ],
+    "gherkin": "Feature: Audit Log Export\n  Background:\n    Given I am logged in as an admin user\n    And audit logging is enabled\n\n  Scenario: Export last 90 days to CSV\n    Given there are 50000 user actions in the last 90 days\n    When I navigate to Security > Audit Logs\n    And I click 'Export to CSV'\n    Then a CSV file is downloaded within 30 seconds\n    And the CSV contains columns: timestamp, user_id, email, action, resource_id, ip_address\n    And each row has a corresponding SHA-256 hash\n\n  Scenario: Admin cannot delete audit logs\n    Given I am logged in as a superadmin\n    When I attempt to delete an audit log entry via the API\n    Then I receive a 403 Forbidden response\n    And the log entry remains intact\n\n  Scenario: GDPR IP masking for EU users\n    Given a user action was performed by an EU-region user\n    When the audit log entry is created\n    Then the ip_address field contains a masked value (e.g., '93.184.xxx.xxx')\n    And the full IP is not stored anywhere in plaintext"
+  }
+}

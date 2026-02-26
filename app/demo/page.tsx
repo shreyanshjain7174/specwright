@@ -55,6 +55,24 @@ Technical notes from previous sprint:
 
 Acceptance: User can toggle between light and dark mode. Preference persists on refresh.`,
   },
+  acme: {
+    label: 'Enterprise — Audit Log (SOC 2)',
+    source: 'manual',
+    content: `Enterprise client Acme Corp is threatening to churn. Security team flagged we don't have audit logs. They need every user action with timestamps, user IDs, and IP addresses. Must be exportable to CSV for SOC 2 compliance audit in 6 weeks.
+
+Constraints from customer call:
+- DO NOT store logs in the same DB as user data (compliance isolation)
+- DO NOT allow audit log deletion by any user including admins
+- DO NOT expose raw SQL or internal system events
+- Must retain logs for minimum 7 years
+- IP addresses must be masked for GDPR in EU regions
+
+Success criteria:
+- Admin can export last 90 days of audit logs to CSV
+- Each row includes: timestamp, user_id, email, action, resource_id, ip_address
+- Export completes in under 30 seconds for 100k rows
+- SOC 2 auditor can verify log integrity via SHA-256 hash`,
+  },
   manual: {
     label: 'Manual — SSO Integration',
     source: 'manual',
@@ -180,6 +198,7 @@ type Stage = 'idle' | 'running' | 'done' | 'error';
 export default function DemoPage() {
   const [content, setContent] = useState('');
   const [source, setSource] = useState('slack');
+  const [featureName, setFeatureName] = useState('');
   const [stage, setStage] = useState<Stage>('idle');
   const [progress, setProgress] = useState(0);
   const [spec, setSpec] = useState<ExecutableSpec | null>(null);
@@ -193,6 +212,7 @@ export default function DemoPage() {
     if (ex) {
       setContent(ex.content);
       setSource(ex.source);
+      setFeatureName(ex.label.split(' — ')[1] || '');
     }
   };
 
@@ -340,6 +360,23 @@ export default function DemoPage() {
               </div>
 
               <div className="flex flex-col gap-3">
+                {/* Feature name */}
+                <div>
+                  <label htmlFor="feature-name" className="block text-xs font-medium text-slate-400 mb-1.5">
+                    Feature name <span className="text-slate-600">(optional)</span>
+                  </label>
+                  <input
+                    id="feature-name"
+                    type="text"
+                    value={featureName}
+                    onChange={(e) => setFeatureName(e.target.value)}
+                    placeholder="Auto-generated if blank"
+                    disabled={isRunning}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg
+                               text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500
+                               transition-colors disabled:opacity-60"
+                  />
+                </div>
                 {/* Source selector */}
                 <div>
                   <label htmlFor="source-select" className="block text-xs font-medium text-slate-400 mb-1.5">
@@ -358,6 +395,7 @@ export default function DemoPage() {
                       <option value="slack">💬 Slack</option>
                       <option value="jira">🎫 Jira</option>
                       <option value="notion">📝 Notion</option>
+                      <option value="gong">📞 Gong</option>
                       <option value="transcript">🎙️ Transcript</option>
                       <option value="manual">✏️ Manual</option>
                     </select>
