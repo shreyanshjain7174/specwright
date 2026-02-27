@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAIClient, AI_MODEL } from '@/lib/ai';
 import { SPEC_COMPILATION_PROMPT, AGENT_IDENTITY } from '@/lib/agent';
+import { retrieveContext, mergeRetrievalResults } from '@/lib/retrieval-router';
 
 export async function POST(request: NextRequest) {
   try {
-    const { context } = await request.json();
+    const { context, documentIds } = await request.json();
 
     if (!context || typeof context !== 'string') {
       return NextResponse.json({ error: 'Context is required' }, { status: 400 });
@@ -17,6 +18,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Hybrid retrieval: direct context + optional PageIndex docs
+    const retrievalResults = await retrieveContext({
+      rawContext: context,
+      documentIds,
+    });
+
+    const mergedContext = mergeRetrievalResults(retrievalResults);
+
+    // Build retrieval sources metadata for the frontend
+    const retrievalSources = retrievalResults.map((r) => ({
+      method: r.method,
+      source: r.source,
+      traces: r.traces,
+    }));
+
     const client = getAIClient();
 
     const response = await client.chat.completions.create({
@@ -25,7 +41,7 @@ export async function POST(request: NextRequest) {
         { role: 'system', content: SPEC_COMPILATION_PROMPT },
         {
           role: 'user',
-          content: `Analyze the following raw product context and generate an Executable Specification:\n\n${context}`,
+          content: `Analyze the following raw product context and generate an Executable Specification:\n\n${mergedContext}`,
         },
       ],
       max_tokens: 4096,
@@ -70,6 +86,7 @@ export async function POST(request: NextRequest) {
       spec,
       agent: AGENT_IDENTITY.name,
       model: AI_MODEL,
+      retrievalSources,
     });
   } catch (error: any) {
     console.error('Spec compilation error:', error);

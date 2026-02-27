@@ -11,6 +11,8 @@ import { SpecTabs } from '@/components/spec-tabs';
 import { SimulationBadge } from '@/components/simulation-badge';
 import { ExportButtons } from '@/components/export-buttons';
 import { ProgressStepper } from '@/components/progress-stepper';
+import { DocumentUpload } from '@/components/DocumentUpload';
+import { RetrievalTraces } from '@/components/RetrievalTraces';
 
 // ── Demo examples ──────────────────────────────────────────────────────────────
 const DEMO_EXAMPLES: Record<string, { label: string; source: string; content: string }> = {
@@ -195,6 +197,25 @@ function MCPModal({ onClose }: { onClose: () => void }) {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 type Stage = 'idle' | 'running' | 'done' | 'error';
 
+interface UploadedDoc {
+  docId: string;
+  filename: string;
+  status: 'uploading' | 'processing' | 'completed' | 'failed';
+  pageCount?: number;
+}
+
+interface RetrievalSource {
+  method: 'direct' | 'pageindex';
+  source: string;
+  traces?: Array<{
+    node_id: string;
+    title: string;
+    page_range: [number, number];
+    reasoning: string;
+    content: string;
+  }>;
+}
+
 export default function DemoPage() {
   const [content, setContent] = useState('');
   const [source, setSource] = useState('slack');
@@ -205,6 +226,8 @@ export default function DemoPage() {
   const [simulation, setSimulation] = useState<SimulationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showMCP, setShowMCP] = useState(false);
+  const [documents, setDocuments] = useState<UploadedDoc[]>([]);
+  const [retrievalSources, setRetrievalSources] = useState<RetrievalSource[]>([]);
   const outputRef = useRef<HTMLDivElement>(null);
 
   const loadExample = (key: string) => {
@@ -216,6 +239,14 @@ export default function DemoPage() {
     }
   };
 
+  const handleDocumentUploaded = (doc: UploadedDoc) => {
+    setDocuments((prev) => [...prev, doc]);
+  };
+
+  const handleRemoveDocument = (docId: string) => {
+    setDocuments((prev) => prev.filter((d) => d.docId !== docId));
+  };
+
   const simulate = async () => {
     if (!content.trim()) return;
     setStage('running');
@@ -223,6 +254,7 @@ export default function DemoPage() {
     setSpec(null);
     setSimulation(null);
     setError(null);
+    setRetrievalSources([]);
 
     try {
       // Animate through pipeline steps
@@ -233,22 +265,35 @@ export default function DemoPage() {
         });
       }
 
+      // Get ready document IDs for hybrid retrieval
+      const readyDocIds = documents
+        .filter((d) => d.status === 'completed')
+        .map((d) => d.docId);
+
       // Compile
       const compileRes = await fetch('/api/specs/compile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context: content }),
+        body: JSON.stringify({
+          context: content,
+          documentIds: readyDocIds.length > 0 ? readyDocIds : undefined,
+        }),
       });
 
-      const { spec: generatedSpec, error: compileError } = await compileRes.json();
-      if (compileError) throw new Error(compileError);
-      setSpec(generatedSpec);
+      const compileData = await compileRes.json();
+      if (compileData.error) throw new Error(compileData.error);
+      setSpec(compileData.spec);
+
+      // Store retrieval sources for display
+      if (compileData.retrievalSources) {
+        setRetrievalSources(compileData.retrievalSources);
+      }
 
       // Simulate
       const simRes = await fetch('/api/specs/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spec: generatedSpec }),
+        body: JSON.stringify({ spec: compileData.spec }),
       });
 
       const { result, error: simError } = await simRes.json();
@@ -432,6 +477,22 @@ export default function DemoPage() {
                 </p>
               </div>
             </div>
+
+            {/* Document upload */}
+            <div className="mt-4 p-4 bg-slate-800/30 border border-slate-700 rounded-xl">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                📄 Upload Documents <span className="text-slate-600 font-normal">(optional)</span>
+              </h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Upload PDFs for reasoning-based retrieval via PageIndex. The AI will extract relevant context from your documents alongside pasted text.
+              </p>
+              <DocumentUpload
+                documents={documents}
+                onDocumentUploaded={handleDocumentUploaded}
+                onRemoveDocument={handleRemoveDocument}
+                disabled={isRunning}
+              />
+            </div>
           </div>
         </section>
 
@@ -512,6 +573,13 @@ export default function DemoPage() {
                     <li key={i} className="text-xs text-slate-400">• {s}</li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Retrieval sources */}
+            {retrievalSources.length > 0 && (
+              <div className="p-4 bg-slate-800/40 border border-slate-700 rounded-xl">
+                <RetrievalTraces sources={retrievalSources} />
               </div>
             )}
 
