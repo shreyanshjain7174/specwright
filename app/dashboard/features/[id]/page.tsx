@@ -124,7 +124,7 @@ function tryParseSpec(details: string): ExecutableSpec | null {
   try {
     const parsed = JSON.parse(details);
     if (parsed && parsed.narrative) return parsed as ExecutableSpec;
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -144,18 +144,14 @@ export default function FeatureDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/specs/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ featureName: id }),
-        });
+        const res = await fetch(`/api/features/${encodeURIComponent(id)}`);
         const json = await res.json();
         if (res.ok && json.spec) {
           const d = json.spec as FeatureDetailData;
-          // Add version numbers to specs
+          // Add version numbers to specs (newest = latest version number)
           const withVersions = (d.specifications || []).map((s, i) => ({
             ...s,
-            version: i + 1,
+            version: (d.specifications || []).length - i,
             parsed: tryParseSpec(s.details),
           }));
           setData({ ...d, specifications: withVersions });
@@ -337,11 +333,10 @@ export default function FeatureDetailPage({ params }: { params: Promise<{ id: st
                 <button
                   key={s.id}
                   onClick={() => setActiveSpecIdx(i)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                    i === activeSpecIdx
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${i === activeSpecIdx
                       ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'
                       : 'bg-slate-700 border border-slate-700 text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                   aria-pressed={i === activeSpecIdx}
                 >
                   v{s.version}
@@ -366,11 +361,10 @@ export default function FeatureDetailPage({ params }: { params: Promise<{ id: st
                 aria-controls={`detail-panel-${tab.id}`}
                 id={`detail-tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-                  activeTab === tab.id
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id
                     ? 'border-emerald-500 text-emerald-400'
                     : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-700'
-                }`}
+                  }`}
               >
                 <tab.icon className="h-3.5 w-3.5" aria-hidden="true" />
                 {tab.label}
@@ -518,11 +512,10 @@ export default function FeatureDetailPage({ params }: { params: Promise<{ id: st
                       return (
                         <div
                           key={spec.id}
-                          className={`p-4 rounded-xl border transition-all ${
-                            approved
+                          className={`p-4 rounded-xl border transition-all ${approved
                               ? 'border-emerald-500/30 bg-emerald-500/5'
                               : 'border-slate-700 bg-slate-800/30'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
@@ -571,22 +564,20 @@ export default function FeatureDetailPage({ params }: { params: Promise<{ id: st
               {parsedSpec.constraints.map((c, i) => (
                 <div
                   key={i}
-                  className={`p-3 rounded-xl border-l-4 ${
-                    c.severity === 'critical'
+                  className={`p-3 rounded-xl border-l-4 ${c.severity === 'critical'
                       ? 'border-l-red-500 bg-red-500/5'
                       : c.severity === 'warning'
-                      ? 'border-l-yellow-500 bg-yellow-500/5'
-                      : 'border-l-blue-500 bg-blue-500/5'
-                  }`}
+                        ? 'border-l-yellow-500 bg-yellow-500/5'
+                        : 'border-l-blue-500 bg-blue-500/5'
+                    }`}
                 >
                   <div className="flex items-start gap-2">
-                    <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded flex-shrink-0 ${
-                      c.severity === 'critical'
+                    <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded flex-shrink-0 ${c.severity === 'critical'
                         ? 'bg-red-500/20 text-red-400'
                         : c.severity === 'warning'
-                        ? 'bg-yellow-500/20 text-yellow-400'
-                        : 'bg-blue-500/20 text-blue-400'
-                    }`}>
+                          ? 'bg-yellow-500/20 text-yellow-400'
+                          : 'bg-blue-500/20 text-blue-400'
+                      }`}>
                       {c.severity}
                     </span>
                     <div>
