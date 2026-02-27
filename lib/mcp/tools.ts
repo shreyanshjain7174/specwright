@@ -50,8 +50,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
                     description: 'Source type of the context',
                 },
                 content: { type: 'string', description: 'Raw text content to ingest' },
-                feature_name: { type: 'string', description: 'Feature this context belongs to' },
-                source_url: { type: 'string', description: 'Optional URL/reference to original source' },
+                feature_name: { type: 'string', description: 'Feature this context belongs to (creates feature if new)' },
             },
             required: ['source_type', 'content', 'feature_name'],
         },
@@ -63,23 +62,17 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
             type: 'object',
             properties: {
                 feature_name: { type: 'string', description: 'Feature to generate spec for' },
-                description: { type: 'string', description: 'Optional detailed description to include' },
             },
             required: ['feature_name'],
         },
     },
     {
         name: 'list_features',
-        description: 'List all features with their spec status (draft, simulated, approved)',
+        description: 'List all features with their spec status and context counts',
         inputSchema: {
             type: 'object',
             properties: {
                 search: { type: 'string', description: 'Optional search term to filter features' },
-                status: {
-                    type: 'string',
-                    enum: ['draft', 'simulated', 'approved', 'no_spec'],
-                    description: 'Optional status filter',
-                },
             },
         },
     },
@@ -146,9 +139,8 @@ async function handleFetchSpec(args: Record<string, unknown>): Promise<ToolResul
     try {
         const sql = getDb();
 
-        // Find the feature
         const features = await sql`
-      SELECT id, name, description, status, created_at
+      SELECT id, name, description, created_at
       FROM features WHERE name ILIKE ${`%${featureName}%`}
       ORDER BY created_at DESC LIMIT 1
     `;
@@ -159,11 +151,11 @@ async function handleFetchSpec(args: Record<string, unknown>): Promise<ToolResul
 
         const feature = features[0];
 
-        // Get latest spec
+        // Get latest spec (uses `details` column, not spec_json)
         const specs = await sql`
-      SELECT id, version, status, spec_json, simulation_json, created_at
+      SELECT id, title, details, status, content_hash, created_at
       FROM specs WHERE feature_id = ${feature.id}
-      ORDER BY version DESC LIMIT 1
+      ORDER BY created_at DESC LIMIT 1
     `;
 
         // Get raw inputs count
@@ -175,18 +167,17 @@ async function handleFetchSpec(args: Record<string, unknown>): Promise<ToolResul
             feature_id: feature.id,
             feature_name: feature.name,
             description: feature.description,
-            status: feature.status,
             raw_input_count: Number(inputs[0]?.count || 0),
         };
 
         if (specs.length > 0) {
             const spec = specs[0];
+            const details = typeof spec.details === 'string' ? JSON.parse(spec.details) : spec.details;
             result.spec = {
                 id: spec.id,
-                version: spec.version,
+                title: spec.title,
                 status: spec.status,
-                content: spec.spec_json,
-                simulation: spec.simulation_json,
+                content: details,
                 created_at: spec.created_at,
             };
         }
@@ -203,7 +194,6 @@ async function handleIngestContext(args: Record<string, unknown>): Promise<ToolR
     const sourceType = String(args.source_type || '');
     const content = String(args.content || '');
     const featureName = String(args.feature_name || '');
-    const sourceUrl = args.source_url ? String(args.source_url) : null;
 
     if (!sourceType || !content || !featureName) {
         return jsonResult({ error: 'source_type, content, and feature_name are required' }, true);
@@ -213,19 +203,27 @@ async function handleIngestContext(args: Record<string, unknown>): Promise<ToolR
         const sql = getDb();
         const contextId = crypto.randomUUID();
 
-        // Upsert feature
-        const features = await sql`
-      INSERT INTO features (name, description, status)
-      VALUES (${featureName}, ${`Context from ${sourceType}`}, 'active')
-      ON CONFLICT (name) DO UPDATE SET updated_at = NOW()
-      RETURNING id
+        // Upsert feature (uses `name` as the unique key via ON CONFLICT)
+        let features = await sql`
+      SELECT id FROM features WHERE name = ${featureName}
     `;
-        const featureId = features[0].id;
 
-        // Insert raw input
+        let featureId: string;
+        if (features.length === 0) {
+            featureId = crypto.randomUUID();
+            await sql`
+        INSERT INTO features (id, name, description)
+        VALUES (${featureId}, ${featureName}, ${`Context from ${sourceType}`})
+      `;
+        } else {
+            featureId = features[0].id;
+            await sql`UPDATE features SET updated_at = NOW() WHERE id = ${featureId}`;
+        }
+
+        // Insert raw input (column is `source`, not `source_type`)
         await sql`
-      INSERT INTO raw_inputs (id, feature_id, source_type, content, source_url)
-      VALUES (${contextId}, ${featureId}, ${sourceType}, ${content}, ${sourceUrl})
+      INSERT INTO raw_inputs (id, feature_id, source, content)
+      VALUES (${contextId}, ${featureId}, ${sourceType}, ${content})
     `;
 
         return jsonResult({
@@ -250,7 +248,6 @@ async function handleGenerateSpec(args: Record<string, unknown>): Promise<ToolRe
     try {
         const sql = getDb();
 
-        // Find feature
         const features = await sql`
       SELECT id, name FROM features WHERE name ILIKE ${`%${featureName}%`}
       ORDER BY created_at DESC LIMIT 1
@@ -264,7 +261,7 @@ async function handleGenerateSpec(args: Record<string, unknown>): Promise<ToolRe
 
         // Gather all raw inputs
         const inputs = await sql`
-      SELECT source_type, content, source_url FROM raw_inputs
+      SELECT source, content FROM raw_inputs
       WHERE feature_id = ${feature.id} ORDER BY created_at ASC
     `;
 
@@ -277,13 +274,12 @@ async function handleGenerateSpec(args: Record<string, unknown>): Promise<ToolRe
 
         // Combine context
         const combinedContext = inputs
-            .map((i) => `[${i.source_type}${i.source_url ? ` — ${i.source_url}` : ''}]\n${i.content}`)
-            .join('\n\n');
+            .map((i: { source: string; content: string }) => `[${i.source}]\n${i.content}`)
+            .join('\n\n---\n\n');
 
         // Call compile endpoint (reuse existing API)
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : 'http://localhost:3000';
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+            || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
         const compileRes = await fetch(`${baseUrl}/api/specs/compile`, {
             method: 'POST',
@@ -297,21 +293,12 @@ async function handleGenerateSpec(args: Record<string, unknown>): Promise<ToolRe
             return jsonResult({ error: `Spec generation failed: ${compileData.error}` }, true);
         }
 
-        // Run simulation
-        const simRes = await fetch(`${baseUrl}/api/specs/simulate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ spec: compileData.spec }),
-        });
-
-        const simData = await simRes.json();
-
         return jsonResult({
             status: 'success',
             feature: feature.name,
+            feature_id: feature.id,
             spec: compileData.spec,
-            simulation: simData.result || null,
-            message: 'Spec generated and simulated. Use fetch_spec to retrieve the full spec.',
+            message: 'Spec generated. Use fetch_spec to retrieve the full spec, or run_simulation to validate it.',
         });
     } catch (error) {
         return jsonResult({ error: `Failed to generate spec: ${String(error)}` }, true);
@@ -328,40 +315,37 @@ async function handleListFeatures(args: Record<string, unknown>): Promise<ToolRe
         let features;
         if (search) {
             features = await sql`
-        SELECT f.id, f.name, f.description, f.status, f.created_at,
-               COUNT(DISTINCT ri.id) as raw_input_count,
-               COUNT(DISTINCT s.id) as spec_count,
-               MAX(s.status) as spec_status
+        SELECT f.id, f.name, f.description, f.created_at, f.updated_at,
+               COUNT(DISTINCT r.id) as raw_input_count,
+               COUNT(DISTINCT s.id) as spec_count
         FROM features f
-        LEFT JOIN raw_inputs ri ON ri.feature_id = f.id
+        LEFT JOIN raw_inputs r ON r.feature_id = f.id
         LEFT JOIN specs s ON s.feature_id = f.id
         WHERE f.name ILIKE ${`%${search}%`} OR f.description ILIKE ${`%${search}%`}
-        GROUP BY f.id ORDER BY f.created_at DESC
+        GROUP BY f.id ORDER BY f.updated_at DESC
       `;
         } else {
             features = await sql`
-        SELECT f.id, f.name, f.description, f.status, f.created_at,
-               COUNT(DISTINCT ri.id) as raw_input_count,
-               COUNT(DISTINCT s.id) as spec_count,
-               MAX(s.status) as spec_status
+        SELECT f.id, f.name, f.description, f.created_at, f.updated_at,
+               COUNT(DISTINCT r.id) as raw_input_count,
+               COUNT(DISTINCT s.id) as spec_count
         FROM features f
-        LEFT JOIN raw_inputs ri ON ri.feature_id = f.id
+        LEFT JOIN raw_inputs r ON r.feature_id = f.id
         LEFT JOIN specs s ON s.feature_id = f.id
-        GROUP BY f.id ORDER BY f.created_at DESC
+        GROUP BY f.id ORDER BY f.updated_at DESC
       `;
         }
 
         return jsonResult({
             total: features.length,
-            features: features.map((f) => ({
+            features: features.map((f: Record<string, unknown>) => ({
                 id: f.id,
                 name: f.name,
                 description: f.description,
-                status: f.status,
-                spec_status: f.spec_status || 'no_spec',
                 raw_input_count: Number(f.raw_input_count),
                 spec_count: Number(f.spec_count),
                 created_at: f.created_at,
+                updated_at: f.updated_at,
             })),
         });
     } catch (error) {
@@ -378,22 +362,20 @@ async function handleGetConstraints(args: Record<string, unknown>): Promise<Tool
     try {
         const sql = getDb();
 
+        // Specs table uses `details` JSONB column, not `spec_json`
         const specs = await sql`
-      SELECT s.spec_json FROM specs s
+      SELECT s.details FROM specs s
       JOIN features f ON s.feature_id = f.id
       WHERE f.name ILIKE ${`%${featureName}%`}
-      ORDER BY s.version DESC LIMIT 1
+      ORDER BY s.created_at DESC LIMIT 1
     `;
 
         if (specs.length === 0) {
             return jsonResult({ error: 'No spec found for this feature', feature: featureName });
         }
 
-        const specJson = specs[0].spec_json;
-        const parsed = typeof specJson === 'string' ? JSON.parse(specJson) : specJson;
-
-        // Extract constraints from the spec
-        const constraints = parsed?.constraints || parsed?.constraint_layer || [];
+        const details = typeof specs[0].details === 'string' ? JSON.parse(specs[0].details) : specs[0].details;
+        const constraints = details?.constraints || details?.constraint_layer || [];
 
         return jsonResult({
             feature: featureName,
@@ -416,28 +398,26 @@ async function handleRunSimulation(args: Record<string, unknown>): Promise<ToolR
         const sql = getDb();
 
         const specs = await sql`
-      SELECT s.spec_json FROM specs s
+      SELECT s.details FROM specs s
       JOIN features f ON s.feature_id = f.id
       WHERE f.name ILIKE ${`%${featureName}%`}
-      ORDER BY s.version DESC LIMIT 1
+      ORDER BY s.created_at DESC LIMIT 1
     `;
 
         if (specs.length === 0) {
             return jsonResult({ error: 'No spec found. Run generate_spec first.', feature: featureName }, true);
         }
 
-        const specJson = specs[0].spec_json;
-        const parsed = typeof specJson === 'string' ? JSON.parse(specJson) : specJson;
+        const details = typeof specs[0].details === 'string' ? JSON.parse(specs[0].details) : specs[0].details;
 
         // Call simulate endpoint
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : 'http://localhost:3000';
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+            || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
         const simRes = await fetch(`${baseUrl}/api/specs/simulate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ spec: parsed }),
+            body: JSON.stringify({ spec: details }),
         });
 
         const simData = await simRes.json();
@@ -449,8 +429,6 @@ async function handleRunSimulation(args: Record<string, unknown>): Promise<ToolR
         return jsonResult({
             feature: featureName,
             simulation: simData.result,
-            passed: simData.result?.passed || false,
-            score: simData.result ? Math.round((simData.result.passedScenarios / Math.max(simData.result.totalScenarios, 1)) * 100) : 0,
             message: simData.result?.passed
                 ? 'All scenarios passed. Spec is ready for implementation.'
                 : 'Some scenarios failed. Review simulation.failures for details.',
