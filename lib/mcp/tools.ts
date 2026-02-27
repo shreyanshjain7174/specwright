@@ -204,7 +204,7 @@ async function handleIngestContext(args: Record<string, unknown>): Promise<ToolR
         const contextId = crypto.randomUUID();
 
         // Upsert feature (uses `name` as the unique key via ON CONFLICT)
-        let features = await sql`
+        const features = await sql`
       SELECT id FROM features WHERE name = ${featureName}
     `;
 

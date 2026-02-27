@@ -27,7 +27,7 @@ export async function GET(
         if (features.length === 0) {
             // Try slug match (e.g. "feature-audit-log-export" → "Audit Log Export")
             const stripped = id.replace(/^feature-/, '').replace(/-/g, ' ');
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             features = await sql`
         SELECT id, name, description, created_at, updated_at
         FROM features
