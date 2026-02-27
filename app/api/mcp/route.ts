@@ -1,72 +1,91 @@
 /**
- * /api/mcp — Next.js API route for MCP HTTP integration
+ * /api/mcp — Production MCP HTTP endpoint
  *
- * GET  /api/mcp  — Returns MCP server manifest (tool list)
- * POST /api/mcp  — Proxies MCP tool calls to the running MCP HTTP server on port 3001
+ * GET  /api/mcp — Returns MCP server manifest (tool list + schemas)
+ * POST /api/mcp — Executes MCP tool calls in-process (no separate server needed)
+ *
+ * This replaces the old proxy approach. Tools run directly against Neon PostgreSQL.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { TOOL_DEFINITIONS, callTool } from '@/lib/mcp/tools';
 
-const MCP_SERVER_URL = process.env.MCP_SERVER_URL || 'http://localhost:3001';
-
-const TOOL_MANIFEST = {
+const MANIFEST = {
   name: 'specwright-mcp-server',
   version: '1.0.0',
   description: 'Specwright MCP server — transforms context into executable specs for AI coding agents',
-  tools: [
-    { name: 'fetch_spec', description: 'Retrieve a complete Executable Specification by feature name or ID' },
-    { name: 'ingest_context', description: 'Ingest raw context (Slack thread, Jira ticket, meeting transcript) linked to a feature' },
-    { name: 'generate_spec', description: 'Trigger full spec generation pipeline for a feature' },
-    { name: 'list_features', description: 'List all features, optionally filtered by status' },
-    { name: 'get_constraints', description: 'Get DO NOT constraint rules for a specific feature' },
-    { name: 'run_simulation', description: 'Run pre-code simulation against a spec (4 validators)' },
-  ],
+  protocol_version: '2024-11-05',
+  capabilities: { tools: {} },
+  tools: TOOL_DEFINITIONS,
 };
 
-export async function GET(_req: NextRequest) {
-  return NextResponse.json(TOOL_MANIFEST, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+/**
+ * GET /api/mcp — MCP manifest
+ */
+export async function GET() {
+  return NextResponse.json(MANIFEST, { headers: CORS_HEADERS });
 }
 
+/**
+ * POST /api/mcp — Call a tool
+ *
+ * Accepts:
+ *   { "tool_name": "fetch_spec", "arguments": { "feature_name": "Dark Mode" } }
+ *
+ * Also supports MCP protocol format:
+ *   { "method": "tools/call", "params": { "name": "fetch_spec", "arguments": { ... } } }
+ */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const upstream = await fetch(`${MCP_SERVER_URL}/mcp/call`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
 
-    if (!upstream.ok) {
-      const text = await upstream.text();
-      return NextResponse.json({ error: `MCP server error: ${text}` }, { status: upstream.status });
+    // Support both custom format and MCP protocol format
+    let toolName: string;
+    let toolArgs: Record<string, unknown>;
+
+    if (body.method === 'tools/call') {
+      // MCP protocol format
+      toolName = body.params?.name;
+      toolArgs = body.params?.arguments || {};
+    } else if (body.method === 'tools/list') {
+      // MCP list tools
+      return NextResponse.json({ tools: TOOL_DEFINITIONS }, { headers: CORS_HEADERS });
+    } else {
+      // Simple format
+      toolName = body.tool_name || body.name;
+      toolArgs = body.arguments || body.args || {};
     }
 
-    const result = await upstream.json();
-    return NextResponse.json(result, { headers: { 'Access-Control-Allow-Origin': '*' } });
-  } catch (error) {
-    if (error instanceof TypeError && error.message.includes('fetch')) {
+    if (!toolName) {
       return NextResponse.json(
-        { error: 'MCP server not running', hint: 'Start with: MCP_SERVER_MODE=http MCP_HTTP_PORT=3001 npm run mcp', url: `${MCP_SERVER_URL}/mcp/call` },
-        { status: 503 },
+        { error: 'tool_name is required. Available tools: ' + TOOL_DEFINITIONS.map((t) => t.name).join(', ') },
+        { status: 400, headers: CORS_HEADERS }
       );
     }
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+
+    const result = await callTool(toolName, toolArgs);
+
+    return NextResponse.json(result, {
+      status: result.isError ? 400 : 200,
+      headers: CORS_HEADERS,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: `MCP tool call failed: ${String(error)}` },
+      { status: 500, headers: CORS_HEADERS }
+    );
   }
 }
 
-export async function OPTIONS(_req: NextRequest) {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+/**
+ * OPTIONS /api/mcp — CORS preflight
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 200, headers: CORS_HEADERS });
 }

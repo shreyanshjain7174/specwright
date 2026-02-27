@@ -1,41 +1,18 @@
-version: '3.8'
-
 services:
-  memgraph:
-    image: memgraph/memgraph-platform:latest
-    container_name: specwright-memgraph
+  specwright:
+    build: .
+    container_name: specwright
     ports:
-      - "7687:7687"
       - "3000:3000"
     environment:
-      - MEMGRAPH_USER=admin
-      - MEMGRAPH_PASSWORD=admin
-    volumes:
-      - memgraph-data:/var/lib/memgraph
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: specwright-qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant-data:/qdrant/storage
-
-  n8n:
-    image: docker.n8n.io/n8nio/n8n
-    container_name: specwright-n8n
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_ENV=production
-    volumes:
-      - n8n-data:/home/node/.n8n
-
-volumes:
-  memgraph-data:
-  qdrant-data:
-  n8n-data:
+      - DATABASE_URL=${DATABASE_URL}
+      - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY}
+      - PAGEINDEX_API_KEY=${PAGEINDEX_API_KEY:-}
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

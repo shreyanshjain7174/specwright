@@ -108,18 +108,115 @@ npm run mcp
 
 ## Deployment
 
-### Vercel (Production)
+### Option 1: Vercel (Recommended for SaaS)
 
-The app is deployed on Vercel with automatic deployments via GitHub Actions.
+The app deploys automatically via GitHub Actions on push to `main`.
 
 ```bash
-# Deploy manually via Vercel CLI
+# Or deploy manually
 npx vercel --prod
 ```
 
-### Neon Integration
+Vercel's Neon integration auto-provisions `DATABASE_URL`. Set `CLOUDFLARE_API_KEY` in the Vercel dashboard under Settings → Environment Variables.
 
-The database is hosted on [Neon](https://neon.tech) — a serverless PostgreSQL platform with pgvector support. Vercel's Neon integration auto-provisions the `DATABASE_URL` environment variable.
+### Option 2: Docker (Self-Hosted / Enterprise)
+
+```bash
+# Build and run
+docker compose up -d
+
+# Or build manually
+docker build -t specwright .
+docker run -p 3000:3000 \
+  -e DATABASE_URL="postgresql://..." \
+  -e CLOUDFLARE_API_KEY="..." \
+  specwright
+```
+
+The Docker image uses Next.js standalone output (~150MB) with a health check at `/api/health`.
+
+### Option 3: Local Development
+
+```bash
+npm install
+cp .env.example .env  # Fill in your keys
+npm run dev            # Web app at localhost:3000
+```
+
+## MCP Integration
+
+Specwright exposes an MCP server for AI coding agents (Cursor, Claude Desktop, etc.).
+
+### HTTP (Production — via deployed app)
+
+The MCP tools are available at `/api/mcp` on any deployed instance:
+
+```bash
+# List tools
+curl https://your-app.vercel.app/api/mcp
+
+# Call a tool
+curl -X POST https://your-app.vercel.app/api/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"tool_name": "list_features", "arguments": {}}'
+```
+
+### STDIO (Local — for Cursor / Claude Desktop)
+
+```bash
+npm run mcp
+```
+
+Add to your Cursor MCP config (`.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "specwright": {
+      "command": "npx",
+      "args": ["tsx", "src/index.ts"],
+      "cwd": "/path/to/specwright"
+    }
+  }
+}
+```
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `fetch_spec` | Retrieve a complete Executable Specification by feature name |
+| `ingest_context` | Ingest raw context (Slack, Jira, transcript) linked to a feature |
+| `generate_spec` | Generate a spec from ingested context |
+| `list_features` | List all features with spec status |
+| `get_constraints` | Get DO NOT constraint rules for a feature |
+| `run_simulation` | Run pre-code simulation to catch errors before implementation |
+
+## Connectors
+
+| Connector | Source | What It Imports |
+|-----------|--------|-----------------|
+| Slack | Channels & threads | Messages, thread replies |
+| Jira | Projects | Issues, comments, descriptions |
+| Notion | Workspaces | Pages, database items, block content |
+| Gong | Call recordings | Transcripts with speaker identification |
+| Confluence | Spaces | Pages with content |
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | Neon PostgreSQL connection string |
+| `CLOUDFLARE_API_KEY` | ✅ | Cloudflare Workers AI API key |
+| `PAGEINDEX_API_KEY` | ❌ | PageIndex API key for reasoning-based document retrieval |
+| `NEXT_PUBLIC_APP_URL` | ❌ | Base URL (auto-set on Vercel; required for Docker) |
+
+## Health Check
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+Returns service status for database, AI, and MCP tools with latency metrics.
 
 ## License
 MIT
