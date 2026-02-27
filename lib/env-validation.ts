@@ -1,23 +1,16 @@
 /**
- * Environment Variable Validation — Phase 7 Security Layer
+ * Environment Variable Validation
  *
  * Validates all required environment variables at startup.
  * Fails fast with a clear, actionable error message if anything is missing.
  * Never exposes env var values to client components.
  *
- * Usage:
- *   // In your app entry point or layout.tsx (server component):
- *   import { validateEnv } from '@/lib/env-validation';
- *   validateEnv(); // throws on missing vars
- *
  * Required variables:
  *   DATABASE_URL           — Neon PostgreSQL connection string
- *   CLOUDFLARE_ACCOUNT_ID  — Cloudflare account for Workers AI
- *   CLOUDFLARE_API_TOKEN   — Cloudflare API token (write scope)
+ *   CLOUDFLARE_API_KEY     — Cloudflare Workers AI API key (via AI Gateway)
  *
  * Optional variables (warn if missing):
- *   MEMGRAPH_URI           — Memgraph graph DB URI
- *   QDRANT_URI             — Qdrant vector DB URI
+ *   PAGEINDEX_API_KEY      — PageIndex API key for reasoning-based document retrieval
  */
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
@@ -34,33 +27,20 @@ interface EnvVarSpec {
 
 const ENV_VARS: EnvVarSpec[] = [
   {
-    name:        'DATABASE_URL',
-    required:    true,
+    name: 'DATABASE_URL',
+    required: true,
     description: 'Neon PostgreSQL connection string',
-    prefix:      'postgres',
+    prefix: 'postgres',
   },
   {
-    name:        'CLOUDFLARE_ACCOUNT_ID',
-    required:    true,
-    description: 'Cloudflare account ID (from dash.cloudflare.com)',
-    pattern:     /^[a-f0-9]{32}$/i,
+    name: 'CLOUDFLARE_API_KEY',
+    required: true,
+    description: 'Cloudflare Workers AI API key (via AI Gateway)',
   },
   {
-    name:        'CLOUDFLARE_API_TOKEN',
-    required:    true,
-    description: 'Cloudflare API token with Workers AI write access',
-  },
-  {
-    name:        'MEMGRAPH_URI',
-    required:    false,
-    description: 'Memgraph bolt URI (bolt://localhost:7687)',
-    prefix:      'bolt',
-  },
-  {
-    name:        'QDRANT_URI',
-    required:    false,
-    description: 'Qdrant HTTP URI (http://localhost:6333)',
-    prefix:      'http',
+    name: 'PAGEINDEX_API_KEY',
+    required: false,
+    description: 'PageIndex API key for reasoning-based document retrieval (https://dash.pageindex.ai/api-keys)',
   },
 ];
 
@@ -78,7 +58,7 @@ export interface EnvValidationResult {
  * Use validateEnv() for the throwing variant.
  */
 export function checkEnv(): EnvValidationResult {
-  const errors:   string[] = [];
+  const errors: string[] = [];
   const warnings: string[] = [];
 
   for (const spec of ENV_VARS) {

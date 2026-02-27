@@ -48,7 +48,20 @@ export async function POST(request: NextRequest) {
       temperature: 0.3,
     });
 
-    const raw = response.choices[0]?.message?.content?.trim();
+    const rawContent: any = response.choices[0]?.message?.content;
+
+    // Cloudflare Workers AI may return content as a string, array of parts, or object
+    let raw: string | undefined;
+    if (typeof rawContent === 'string') {
+      raw = rawContent.trim();
+    } else if (Array.isArray(rawContent)) {
+      raw = rawContent
+        .map((part: any) => (typeof part === 'string' ? part : part?.text ?? ''))
+        .join('')
+        .trim();
+    } else if (rawContent && typeof rawContent === 'object') {
+      raw = JSON.stringify(rawContent);
+    }
 
     if (!raw) {
       return NextResponse.json(
