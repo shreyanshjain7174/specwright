@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, Plus, Database, FileText, MessageSquare,
-  Loader2, Upload, X, Layers
+  Loader2, Upload, X, Layers, Plug
 } from 'lucide-react';
 import { FeatureList, FeatureItem } from '@/components/feature-list';
 import { useRouter } from 'next/navigation';
@@ -219,6 +219,15 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
+              href="/dashboard/connectors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-700
+                         hover:border-slate-600 text-slate-400 hover:text-white text-sm
+                         font-medium rounded-lg transition-all"
+            >
+              <Plug className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Connectors</span>
+            </Link>
+            <Link
               href="/dashboard/ingest"
               className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-700
                          hover:border-slate-600 text-slate-400 hover:text-white text-sm
@@ -253,16 +262,16 @@ export default function DashboardPage() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
-            { icon: Database, label: 'Features', value: features.length, color: 'emerald' },
-            { icon: MessageSquare, label: 'Raw Inputs', value: totalInputs, color: 'blue' },
-            { icon: FileText, label: 'Specs Generated', value: totalSpecs, color: 'purple' },
+            { icon: Database, label: 'Features', value: features.length, bgColor: 'bg-emerald-500/10', textColor: 'text-emerald-400' },
+            { icon: MessageSquare, label: 'Raw Inputs', value: totalInputs, bgColor: 'bg-blue-500/10', textColor: 'text-blue-400' },
+            { icon: FileText, label: 'Specs Generated', value: totalSpecs, bgColor: 'bg-purple-500/10', textColor: 'text-purple-400' },
           ].map((stat) => (
             <div
               key={stat.label}
               className="p-4 sm:p-5 bg-slate-800/40 border border-slate-700 rounded-xl flex items-center gap-3 sm:gap-4"
             >
-              <div className={`p-2.5 rounded-lg bg-${stat.color}-500/10 flex-shrink-0`}>
-                <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 text-${stat.color}-400`} aria-hidden="true" />
+              <div className={`p-2.5 rounded-lg ${stat.bgColor} flex-shrink-0`}>
+                <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.textColor}`} aria-hidden="true" />
               </div>
               <div>
                 <p className="text-xl sm:text-2xl font-bold text-white">{stat.value}</p>

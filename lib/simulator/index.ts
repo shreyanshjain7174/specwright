@@ -157,7 +157,15 @@ Respond with valid JSON only (no markdown fences):
       temperature: 0.3,
     });
 
-    const raw = response.choices[0]?.message?.content?.trim() ?? '';
+    const rawContent: any = response.choices[0]?.message?.content;
+    let raw = '';
+    if (typeof rawContent === 'string') {
+      raw = rawContent.trim();
+    } else if (Array.isArray(rawContent)) {
+      raw = rawContent.map((p: any) => typeof p === 'string' ? p : p?.text ?? '').join('').trim();
+    } else if (rawContent && typeof rawContent === 'object') {
+      raw = JSON.stringify(rawContent);
+    }
     const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
     const parsed = JSON.parse(text) as {
       ambiguities: Array<{ location: string; text: string; reason: string; suggestion: string }>;
@@ -229,7 +237,15 @@ Respond with valid JSON only:
       temperature: 0.2,
     });
 
-    const raw = response.choices[0]?.message?.content?.trim() ?? '';
+    const rawContent2: any = response.choices[0]?.message?.content;
+    let raw = '';
+    if (typeof rawContent2 === 'string') {
+      raw = rawContent2.trim();
+    } else if (Array.isArray(rawContent2)) {
+      raw = rawContent2.map((p: any) => typeof p === 'string' ? p : p?.text ?? '').join('').trim();
+    } else if (rawContent2 && typeof rawContent2 === 'object') {
+      raw = JSON.stringify(rawContent2);
+    }
     const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
     const parsed = JSON.parse(text) as {
       contradictions: Array<{ itemA: string; itemB: string; description: string; resolution: string }>;
@@ -309,9 +325,9 @@ function checkTestability(spec: ExecutableSpec): CheckResult {
 function computeCoverageScore(checks: SimulatorResult['checks']): number {
   const weighted =
     checks.completeness.score * 0.35 +
-    checks.ambiguity.score   * 0.25 +
+    checks.ambiguity.score * 0.25 +
     checks.contradiction.score * 0.25 +
-    checks.testability.score  * 0.15;
+    checks.testability.score * 0.15;
   return Math.round(Math.min(100, Math.max(0, weighted)));
 }
 
@@ -343,9 +359,9 @@ export async function simulateSpec(
   // Aggregate failures for the SimulationResult interface
   const allIssues = [
     ...completeness.issues.map(i => ({ scenario: 'Completeness', reason: i })),
-    ...ambiguity.issues.map(i =>   ({ scenario: 'Ambiguity',    reason: i })),
+    ...ambiguity.issues.map(i => ({ scenario: 'Ambiguity', reason: i })),
     ...contradiction.issues.map(i => ({ scenario: 'Contradiction', reason: i })),
-    ...testability.issues.map(i => ({ scenario: 'Testability',  reason: i })),
+    ...testability.issues.map(i => ({ scenario: 'Testability', reason: i })),
   ];
 
   const allSuggestions = [
