@@ -2,9 +2,10 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Sparkles, Download, AlertCircle, Zap, Terminal,
-  Copy, Check, X, ChevronDown
+  ArrowLeft, Sparkles, AlertCircle, Zap, Terminal,
+  Copy, Check, X, ChevronDown, Layers
 } from 'lucide-react';
 import { ExecutableSpec, SimulationResult } from '@/lib/types';
 import { SpecTabs } from '@/components/spec-tabs';
@@ -13,12 +14,15 @@ import { ExportButtons } from '@/components/export-buttons';
 import { ProgressStepper } from '@/components/progress-stepper';
 import { DocumentUpload } from '@/components/DocumentUpload';
 import { RetrievalTraces } from '@/components/RetrievalTraces';
+import { SlackIcon, JiraIcon, GongIcon } from '@/components/icons/ConnectorIcons';
 
 // ── Demo examples ──────────────────────────────────────────────────────────────
-const DEMO_EXAMPLES: Record<string, { label: string; source: string; content: string }> = {
+const DEMO_EXAMPLES: Record<string, { label: string; shortLabel: string; source: string; content: string; icon?: React.FC<{ className?: string }> }> = {
   slack: {
     label: 'Slack — Bulk Delete Bug',
+    shortLabel: 'Bulk Delete',
     source: 'slack',
+    icon: SlackIcon,
     content: `[Slack #product-feedback]
 @sarah: Hey, can we add bulk delete for documents? Our enterprise customers keep asking for it.
 @mike: Seems straightforward, maybe 3-4 days?
@@ -37,7 +41,9 @@ Note: Enterprise customer, $50k ARR
   },
   jira: {
     label: 'Jira — Dark Mode Feature',
+    shortLabel: 'Dark Mode',
     source: 'jira',
+    icon: JiraIcon,
     content: `[JIRA-1204] Dark Mode Support
 Priority: High
 Reporter: PM Team
@@ -59,6 +65,7 @@ Acceptance: User can toggle between light and dark mode. Preference persists on 
   },
   acme: {
     label: 'Enterprise — Audit Log (SOC 2)',
+    shortLabel: 'Audit Log',
     source: 'manual',
     content: `Enterprise client Acme Corp is threatening to churn. Security team flagged we don't have audit logs. They need every user action with timestamps, user IDs, and IP addresses. Must be exportable to CSV for SOC 2 compliance audit in 6 weeks.
 
@@ -77,7 +84,9 @@ Success criteria:
   },
   manual: {
     label: 'Manual — SSO Integration',
+    shortLabel: 'SSO',
     source: 'manual',
+    icon: GongIcon,
     content: `Feature Request: Single Sign-On (SSO) via SAML 2.0
 
 Background:
@@ -132,16 +141,37 @@ function MCPModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0, y: 10 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 10 }}
+        transition={{ type: 'spring' as const, stiffness: 350, damping: 30 }}
+        className="bg-[#111827] border border-white/[0.06] rounded-2xl p-6 w-full max-w-lg shadow-2xl"
+      >
+        <div className="h-1 -mt-6 -mx-6 mb-5 rounded-t-2xl bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500" />
+
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <Terminal className="h-5 w-5 text-emerald-400" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <Terminal className="h-4 w-4 text-emerald-400" />
+            </div>
             <h2 className="text-lg font-bold text-white">Connect to Cursor</h2>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors" aria-label="Close">
+          <motion.button
+            whileHover={{ rotate: 90 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="text-slate-500 hover:text-white transition-colors"
+            aria-label="Close"
+          >
             <X className="h-5 w-5" />
-          </button>
+          </motion.button>
         </div>
 
         <ol className="space-y-4 mb-5">
@@ -156,7 +186,7 @@ function MCPModal({ onClose }: { onClose: () => void }) {
             { step: '3', title: 'Restart Cursor', subtitle: 'Your specs will be available in every chat automatically.' },
           ].map((item) => (
             <li key={item.step} className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold flex items-center justify-center">
                 {item.step}
               </span>
               <div className="flex-1 min-w-0">
@@ -164,7 +194,7 @@ function MCPModal({ onClose }: { onClose: () => void }) {
                 {item.subtitle && <p className="text-xs text-slate-400 mb-1.5">{item.subtitle}</p>}
                 {item.code && (
                   <div className="relative">
-                    <pre className="text-xs font-mono bg-slate-800 border border-slate-700 rounded-lg p-3 overflow-x-auto text-slate-300">
+                    <pre className="text-xs font-mono bg-black/20 border border-white/[0.06] rounded-lg p-3 overflow-x-auto text-slate-300">
                       {item.code}
                     </pre>
                     {item.step === '2' && (
@@ -183,14 +213,16 @@ function MCPModal({ onClose }: { onClose: () => void }) {
           ))}
         </ol>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
           onClick={onClose}
           className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition-colors text-sm"
         >
           Got it — close
-        </button>
-      </div>
-    </div>
+        </motion.button>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -257,7 +289,6 @@ export default function DemoPage() {
     setRetrievalSources([]);
 
     try {
-      // Animate through pipeline steps
       for (const step of PIPELINE_STEPS) {
         await new Promise<void>((resolve) => {
           setProgress(step.percent);
@@ -265,12 +296,10 @@ export default function DemoPage() {
         });
       }
 
-      // Get ready document IDs for hybrid retrieval
       const readyDocIds = documents
         .filter((d) => d.status === 'completed')
         .map((d) => d.docId);
 
-      // Compile
       const compileRes = await fetch('/api/specs/compile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -284,12 +313,10 @@ export default function DemoPage() {
       if (compileData.error) throw new Error(compileData.error);
       setSpec(compileData.spec);
 
-      // Store retrieval sources for display
       if (compileData.retrievalSources) {
         setRetrievalSources(compileData.retrievalSources);
       }
 
-      // Simulate
       const simRes = await fetch('/api/specs/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -302,7 +329,6 @@ export default function DemoPage() {
 
       setStage('done');
 
-      // Scroll to output
       setTimeout(() => {
         outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 300);
@@ -320,11 +346,25 @@ export default function DemoPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
-      {showMCP && <MCPModal onClose={() => setShowMCP(false)} />}
+    <div className="min-h-screen bg-[#0B0F1A] text-white">
+
+      {/* Background */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute -top-40 left-1/3 w-[500px] h-[500px] bg-emerald-500/[0.03] rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/4 right-0 w-[400px] h-[400px] bg-purple-500/[0.03] rounded-full blur-[120px]" />
+      </div>
+
+      <AnimatePresence>
+        {showMCP && <MCPModal onClose={() => setShowMCP(false)} />}
+      </AnimatePresence>
 
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+      <motion.header
+        initial={{ y: -10, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.4 }}
+        className="border-b border-white/[0.04] bg-[#0B0F1A]/80 backdrop-blur-xl sticky top-0 z-40"
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
@@ -335,50 +375,64 @@ export default function DemoPage() {
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline text-sm">Back</span>
             </Link>
-            <div className="h-4 w-px bg-slate-700 hidden sm:block" aria-hidden="true" />
+            <div className="h-4 w-px bg-white/[0.06] hidden sm:block" aria-hidden="true" />
             <div>
-              <h1 className="text-base font-bold text-white">Live Demo</h1>
-              <p className="text-xs text-slate-500 hidden sm:block">Paste context → get executable specs in seconds</p>
+              <h1 className="text-base font-bold text-white flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-emerald-400" />
+                Live Demo
+              </h1>
+              <p className="text-xs text-slate-600 hidden sm:block">Paste context → get executable specs in seconds</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
-              className="hidden sm:inline-flex items-center gap-2 px-3 py-2 border border-slate-700
-                         hover:border-slate-600 text-slate-400 hover:text-white text-sm rounded-lg transition-all"
+              className="hidden sm:inline-flex items-center gap-2 px-3 py-2 border border-white/[0.06]
+                         hover:border-white/10 text-slate-400 hover:text-white text-sm rounded-lg transition-all"
             >
               Dashboard
             </Link>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setShowMCP(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30
-                         border border-emerald-500/30 text-emerald-400 text-sm font-medium rounded-lg transition-all"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-500/10
+                         border border-emerald-500/20 text-emerald-400 text-sm font-medium rounded-lg transition-all
+                         hover:bg-emerald-500/15"
             >
               <Terminal className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Connect to Cursor</span>
-            </button>
+            </motion.button>
           </div>
         </div>
-      </header>
+      </motion.header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main className="relative max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
         {/* Input section */}
-        <section aria-label="Spec generation input">
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          aria-label="Spec generation input"
+        >
           <div className="space-y-4">
             {/* Example loader */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium">Load example:</span>
+              <span className="text-xs text-slate-600 font-medium">Load example:</span>
               {Object.entries(DEMO_EXAMPLES).map(([key, ex]) => (
-                <button
+                <motion.button
                   key={key}
+                  whileHover={{ scale: 1.04, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => loadExample(key)}
-                  className="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700
-                             border border-slate-700 hover:border-slate-600 text-slate-400 hover:text-white
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#111827] hover:bg-white/[0.06]
+                             border border-white/[0.06] hover:border-white/10 text-slate-400 hover:text-white
                              rounded-lg transition-all"
                 >
-                  {ex.label}
-                </button>
+                  {ex.icon && <ex.icon className="w-3 h-3" />}
+                  {ex.shortLabel}
+                </motion.button>
               ))}
             </div>
 
@@ -393,22 +447,21 @@ export default function DemoPage() {
                   placeholder="Paste a Slack thread, meeting notes, Jira ticket, or describe a feature…&#10;&#10;Best with 100–200 words of context per feature."
                   rows={10}
                   disabled={isRunning}
-                  className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl
-                             text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500
+                  className="w-full px-4 py-3 bg-[#111827] border border-white/[0.06] rounded-xl
+                             text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/40
                              transition-colors resize-none font-mono disabled:opacity-60"
                 />
                 {content && (
-                  <div className="absolute bottom-3 right-3 text-xs text-slate-600">
+                  <div className="absolute bottom-3 right-3 text-xs text-slate-700">
                     {content.split(/\s+/).filter(Boolean).length} words
                   </div>
                 )}
               </div>
 
               <div className="flex flex-col gap-3">
-                {/* Feature name */}
                 <div>
                   <label htmlFor="feature-name" className="block text-xs font-medium text-slate-400 mb-1.5">
-                    Feature name <span className="text-slate-600">(optional)</span>
+                    Feature name <span className="text-slate-700">(optional)</span>
                   </label>
                   <input
                     id="feature-name"
@@ -417,12 +470,11 @@ export default function DemoPage() {
                     onChange={(e) => setFeatureName(e.target.value)}
                     placeholder="Auto-generated if blank"
                     disabled={isRunning}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg
-                               text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500
+                    className="w-full px-3 py-2 bg-[#111827] border border-white/[0.06] rounded-lg
+                               text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/40
                                transition-colors disabled:opacity-60"
                   />
                 </div>
-                {/* Source selector */}
                 <div>
                   <label htmlFor="source-select" className="block text-xs font-medium text-slate-400 mb-1.5">
                     Source type
@@ -433,29 +485,31 @@ export default function DemoPage() {
                       value={source}
                       onChange={(e) => setSource(e.target.value)}
                       disabled={isRunning}
-                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg
-                                 text-sm text-white appearance-none focus:outline-none focus:border-emerald-500
+                      className="w-full px-3 py-2.5 bg-[#111827] border border-white/[0.06] rounded-lg
+                                 text-sm text-white appearance-none focus:outline-none focus:border-emerald-500/40
                                  transition-colors disabled:opacity-60 pr-8"
                     >
-                      <option value="slack">💬 Slack</option>
-                      <option value="jira">🎫 Jira</option>
-                      <option value="notion">📝 Notion</option>
-                      <option value="gong">📞 Gong</option>
-                      <option value="transcript">🎙️ Transcript</option>
-                      <option value="manual">✏️ Manual</option>
+                      <option value="slack">Slack</option>
+                      <option value="jira">Jira</option>
+                      <option value="notion">Notion</option>
+                      <option value="gong">Gong</option>
+                      <option value="transcript">Transcript</option>
+                      <option value="manual">Manual</option>
                     </select>
-                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 pointer-events-none" />
                   </div>
                 </div>
 
                 {/* Generate button */}
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={simulate}
                   disabled={!content.trim() || isRunning}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3
-                             bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700
+                             bg-gradient-to-r from-emerald-600 to-emerald-500 disabled:from-slate-700 disabled:to-slate-700
                              disabled:cursor-not-allowed text-white font-semibold rounded-xl
-                             transition-all hover:shadow-lg hover:shadow-emerald-500/20"
+                             transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none"
                   aria-label="Generate spec"
                 >
                   {isRunning ? (
@@ -469,21 +523,20 @@ export default function DemoPage() {
                       Generate Spec
                     </>
                   )}
-                </button>
+                </motion.button>
 
-                {/* Info */}
-                <p className="text-xs text-slate-600 leading-relaxed">
+                <p className="text-xs text-slate-700 leading-relaxed">
                   Best with 100–200 words of context. More signal = better spec.
                 </p>
               </div>
             </div>
 
             {/* Document upload */}
-            <div className="mt-4 p-4 bg-slate-800/30 border border-slate-700 rounded-xl">
+            <div className="mt-4 p-4 bg-[#111827] border border-white/[0.06] rounded-xl">
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                📄 Upload Documents <span className="text-slate-600 font-normal">(optional)</span>
+                Upload Documents <span className="text-slate-700 font-normal">(optional)</span>
               </h3>
-              <p className="text-xs text-slate-500 mb-3">
+              <p className="text-xs text-slate-600 mb-3">
                 Upload PDFs for reasoning-based retrieval via PageIndex. The AI will extract relevant context from your documents alongside pasted text.
               </p>
               <DocumentUpload
@@ -494,43 +547,65 @@ export default function DemoPage() {
               />
             </div>
           </div>
-        </section>
+        </motion.section>
 
         {/* Error */}
-        {error && (
-          <div
-            className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl"
-            role="alert"
-          >
-            <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-400 flex-1">{error}</p>
-            <button
-              onClick={() => { setError(null); setStage('idle'); }}
-              className="text-red-400 hover:text-red-300 transition-colors"
-              aria-label="Dismiss error"
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl"
+              role="alert"
             >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+              <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+              <p className="text-sm text-red-400 flex-1">{error}</p>
+              <button
+                onClick={() => { setError(null); setStage('idle'); }}
+                className="text-red-400 hover:text-red-300 transition-colors"
+                aria-label="Dismiss error"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Progress */}
-        {isRunning && (
-          <section
-            className="p-6 bg-slate-800/40 border border-slate-700 rounded-2xl"
-            aria-label="Generation progress"
-          >
-            <h2 className="text-base font-semibold text-white mb-5 flex items-center gap-2">
-              <Zap className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-              Generating Executable Spec…
-            </h2>
-            <ProgressStepper currentPercent={progress} />
-          </section>
-        )}
+        <AnimatePresence>
+          {isRunning && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="p-6 bg-[#111827] border border-white/[0.06] rounded-2xl"
+              aria-label="Generation progress"
+            >
+              <h2 className="text-base font-semibold text-white mb-5 flex items-center gap-2">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
+                >
+                  <Zap className="h-4 w-4 text-emerald-400" />
+                </motion.div>
+                Generating Executable Spec…
+              </h2>
+              <ProgressStepper currentPercent={progress} />
+            </motion.section>
+          )}
+        </AnimatePresence>
 
         {/* Output */}
         {isDone && spec && (
-          <section ref={outputRef} aria-label="Generated spec output" className="space-y-5">
+          <motion.section
+            ref={outputRef}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            aria-label="Generated spec output"
+            className="space-y-5"
+          >
             {/* Score + export row */}
             <div className="flex flex-wrap items-center justify-between gap-4">
               {simulation && (
@@ -550,7 +625,11 @@ export default function DemoPage() {
 
             {/* Failures */}
             {simulation && simulation.failures.length > 0 && (
-              <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-2">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-4 bg-red-500/[0.04] border border-red-500/15 rounded-xl space-y-2"
+              >
                 <p className="text-sm font-semibold text-red-400 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4" />
                   {simulation.failures.length} scenario failure{simulation.failures.length !== 1 ? 's' : ''} detected
@@ -558,19 +637,19 @@ export default function DemoPage() {
                 {simulation.failures.map((f, i) => (
                   <div key={i} className="pl-6">
                     <p className="text-xs text-red-300 font-medium">{f.scenario}</p>
-                    <p className="text-xs text-slate-400">{f.reason}</p>
+                    <p className="text-xs text-slate-500">{f.reason}</p>
                   </div>
                 ))}
-              </div>
+              </motion.div>
             )}
 
             {/* Suggestions */}
             {simulation && simulation.suggestions.length > 0 && (
-              <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl">
-                <p className="text-xs font-semibold text-yellow-400 mb-2">💡 Suggestions</p>
+              <div className="p-4 bg-amber-500/[0.04] border border-amber-500/15 rounded-xl">
+                <p className="text-xs font-semibold text-amber-400 mb-2">💡 Suggestions</p>
                 <ul className="space-y-1">
                   {simulation.suggestions.map((s, i) => (
-                    <li key={i} className="text-xs text-slate-400">• {s}</li>
+                    <li key={i} className="text-xs text-slate-500">• {s}</li>
                   ))}
                 </ul>
               </div>
@@ -578,47 +657,63 @@ export default function DemoPage() {
 
             {/* Retrieval sources */}
             {retrievalSources.length > 0 && (
-              <div className="p-4 bg-slate-800/40 border border-slate-700 rounded-xl">
+              <div className="p-4 bg-[#111827] border border-white/[0.06] rounded-xl">
                 <RetrievalTraces sources={retrievalSources} />
               </div>
             )}
 
             {/* Tabbed spec viewer */}
-            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl overflow-hidden" style={{ minHeight: '400px' }}>
+            <div className="bg-[#111827] border border-white/[0.06] rounded-2xl overflow-hidden" style={{ minHeight: '400px' }}>
               <SpecTabs spec={spec} className="h-full" />
             </div>
 
             {/* Save to dashboard CTA */}
-            <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <motion.div
+              whileHover={{ y: -1 }}
+              className="p-4 bg-emerald-500/[0.04] border border-emerald-500/15 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+            >
               <div>
                 <p className="text-sm font-medium text-white">Save this spec to your dashboard</p>
-                <p className="text-xs text-slate-400">Track versions, approve specs, and connect Cursor via MCP.</p>
+                <p className="text-xs text-slate-500">Track versions, approve specs, and connect Cursor via MCP.</p>
               </div>
               <Link
                 href="/dashboard"
-                className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600
-                           hover:bg-emerald-500 text-white font-semibold rounded-lg transition-all text-sm"
+                className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500
+                           text-white font-semibold rounded-lg transition-all text-sm shadow-lg shadow-emerald-500/20
+                           hover:shadow-emerald-500/30"
               >
                 Open Dashboard
                 <ArrowLeft className="h-4 w-4 rotate-180" />
               </Link>
-            </div>
-          </section>
+            </motion.div>
+          </motion.section>
         )}
 
         {/* Idle placeholder */}
-        {stage === 'idle' && (
-          <div className="text-center py-12 border border-dashed border-slate-700 rounded-2xl">
-            <Sparkles className="h-10 w-10 text-slate-600 mx-auto mb-3" aria-hidden="true" />
-            <p className="text-slate-400 font-medium mb-1">
-              Paste context above and click{' '}
-              <span className="text-emerald-400">Generate Spec</span>
-            </p>
-            <p className="text-sm text-slate-600">
-              Or load one of the examples to see a real spec generated in seconds
-            </p>
-          </div>
-        )}
+        <AnimatePresence>
+          {stage === 'idle' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center py-16 border border-dashed border-white/[0.06] rounded-2xl"
+            >
+              <motion.div
+                animate={{ y: [0, -6, 0] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+              >
+                <Sparkles className="h-10 w-10 text-slate-700 mx-auto mb-3" aria-hidden="true" />
+              </motion.div>
+              <p className="text-slate-400 font-medium mb-1">
+                Paste context above and click{' '}
+                <span className="text-emerald-400">Generate Spec</span>
+              </p>
+              <p className="text-sm text-slate-700">
+                Or load one of the examples to see a real spec generated in seconds
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
