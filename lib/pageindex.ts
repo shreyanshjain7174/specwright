@@ -5,7 +5,7 @@
  * See: https://docs.pageindex.ai/quickstart
  */
 
-const PAGEINDEX_API_BASE = 'https://api.pageindex.ai/v1';
+const PAGEINDEX_API_BASE = 'https://api.pageindex.ai';
 
 function getApiKey(): string {
     const key = process.env.PAGEINDEX_API_KEY;
@@ -69,7 +69,7 @@ export async function uploadDocument(
     const blob = new Blob([new Uint8Array(file)], { type: 'application/pdf' });
     formData.append('file', blob, filename);
 
-    const response = await fetch(`${PAGEINDEX_API_BASE}/documents`, {
+    const response = await fetch(`${PAGEINDEX_API_BASE}/doc`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${getApiKey()}` },
         body: formData,
@@ -89,7 +89,7 @@ export async function uploadDocument(
 export async function getDocumentStatus(
     docId: string
 ): Promise<PageIndexDocument> {
-    const response = await fetch(`${PAGEINDEX_API_BASE}/documents/${docId}`, {
+    const response = await fetch(`${PAGEINDEX_API_BASE}/doc/${docId}`, {
         headers: headers(),
     });
 
@@ -105,7 +105,7 @@ export async function getDocumentStatus(
  */
 export async function getTree(docId: string): Promise<{ result: TreeNode }> {
     const response = await fetch(
-        `${PAGEINDEX_API_BASE}/documents/${docId}/tree`,
+        `${PAGEINDEX_API_BASE}/tree/${docId}`,
         { headers: headers() }
     );
 
